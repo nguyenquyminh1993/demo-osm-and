@@ -9,9 +9,12 @@
 	<string name="route_info_remaining_with_time_format">%1$s · %2$s</string>
 	<string name="follow_location_enable">Theo dõi vị trí</string>
 	<string name="follow_location_disable">Dừng theo dõi</string>
+	<string name="follow_navigation_enable">Theo dõi tuyến đường</string>
+	<string name="follow_navigation_disable">Dừng theo dõi tuyến đường</string>
 	<string name="start_navigation">Bắt đầu điều hướng</string>
 	<string name="stop_navigation">Dừng điều hướng</string>
 	<string name="mode_car">Ô tô</string>
 	<string name="mode_bike">Xe đạp</string>
 	<string name="mode_foot">Đi bộ</string>
+	<string name="use_opengl_render">Use OpenGL render</string>
 </resources>

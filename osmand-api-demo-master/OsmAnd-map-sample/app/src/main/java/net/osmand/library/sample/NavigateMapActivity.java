@@ -6,10 +6,12 @@ import static net.osmand.plus.utils.InsetsUtils.InsetSide.RIGHT;
 import static net.osmand.plus.utils.InsetsUtils.InsetSide.TOP;
 
 import android.annotation.SuppressLint;
+import net.osmand.Location;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.CompoundButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -18,7 +20,6 @@ import androidx.appcompat.widget.Toolbar;
 
 import com.google.android.material.button.MaterialButton;
 
-import net.osmand.Location;
 import net.osmand.data.LatLon;
 import net.osmand.data.PointDescription;
 import net.osmand.data.RotatedTileBox;
@@ -51,23 +52,24 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 	private MapViewWithLayers mapViewWithLayers;
 	private OnLongClickListener clickListener;
 	private View routeInfoContainer;
-	private TextView nextTurnIconText;
+	private ImageView nextTurnIcon;
 	private TextView nextTurnDistanceText;
 	private TextView nextTurnText;
 	private TextView remainingDistanceText;
 	private MaterialButton followLocationButton;
+	private MaterialButton followNavigationButton;
 	private MaterialButton startStopNavigationButton;
 	private MaterialButton modeCarButton;
 	private MaterialButton modeBikeButton;
 	private MaterialButton modeFootButton;
 	private boolean followLocationEnabled;
+	private boolean followNavigationEnabled;
 	private boolean navigationActive;
 	private final NextDirectionInfo nextDirectionInfo = new NextDirectionInfo();
 	private final IRoutingDataUpdateListener routingDataUpdateListener = () -> runOnUiThread(this::refreshRouteInfoView);
 	private OsmAndLocationProvider locationProvider;
 	private final OsmAndLocationListener locationListener = location -> runOnUiThread(() -> onUserLocationUpdated(location));
 
-	private LatLon start;
 	private LatLon finish;
 
 	@Override
@@ -76,11 +78,12 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 		setContentView(R.layout.simple_map_activity);
 		mapViewWithLayers = findViewById(R.id.map_view_with_layers);
 		routeInfoContainer = findViewById(R.id.route_info_container);
-		nextTurnIconText = findViewById(R.id.next_turn_icon_text);
+		nextTurnIcon = findViewById(R.id.next_turn_icon);
 		nextTurnDistanceText = findViewById(R.id.next_turn_distance_text);
 		nextTurnText = findViewById(R.id.next_turn_text);
 		remainingDistanceText = findViewById(R.id.remaining_distance_text);
 		followLocationButton = findViewById(R.id.follow_location_button);
+		followNavigationButton = findViewById(R.id.follow_navigation_button);
 		startStopNavigationButton = findViewById(R.id.start_stop_navigation_button);
 		modeCarButton = findViewById(R.id.mode_car_button);
 		modeBikeButton = findViewById(R.id.mode_bike_button);
@@ -92,6 +95,11 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 		if (followLocationButton != null) {
 			followLocationButton.setOnClickListener(v -> toggleFollowLocation());
 			updateFollowLocationButtonState();
+		}
+
+		if (followNavigationButton != null) {
+			followNavigationButton.setOnClickListener(v -> toggleFollowNavigation());
+			updateFollowNavigationButtonState();
 		}
 
 		if (startStopNavigationButton != null) {
@@ -121,9 +129,21 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 			app.getSettings().USE_OPENGL_RENDER.set(isChecked);
 			RestartActivity.doRestart(this);
 		});
-		//set start location and zoom for map
-		mapTileView.setIntZoom(14);
-		mapTileView.setLatLon(24.717957, 125.344340);
+
+		// Initialize map with user location if available
+		if (locationProvider != null) {
+			Location lastKnown = locationProvider.getLastKnownLocation();
+			if (lastKnown != null) {
+				mapTileView.setIntZoom(14);
+				mapTileView.setLatLon(lastKnown.getLatitude(), lastKnown.getLongitude());
+			} else {
+				mapTileView.setIntZoom(14);
+				mapTileView.setLatLon(24.717957, 125.344340);
+			}
+		} else {
+			mapTileView.setIntZoom(14);
+			mapTileView.setLatLon(24.717957, 125.344340);
+		}
 	}
 
 	@Override
@@ -166,8 +186,10 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 			locationProvider.addLocationListener(locationListener);
 			locationProvider.resumeAllUpdates();
 			Location lastKnown = locationProvider.getLastKnownLocation();
-			if (followLocationEnabled && lastKnown != null) {
-				centerMapOnLocation(lastKnown);
+			if (lastKnown != null) {
+				if (followLocationEnabled || !navigationActive) {
+					centerMapOnLocation(lastKnown);
+				}
 			}
 		}
 		refreshRouteInfoView();
@@ -176,17 +198,16 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 	private OnLongClickListener getClickListener() {
 		if (clickListener == null) {
 			clickListener = point -> {
+				if (navigationActive) {
+					// Don't allow changing destination during navigation
+					return false;
+				}
 				RotatedTileBox tileBox = mapTileView.getCurrentRotatedTileBox();
 				LatLon latLon = NativeUtilities.getLatLonFromPixel(mapTileView.getMapRenderer(), tileBox, point.x, point.y);
 
-				if (start == null) {
-					start = latLon;
-					app.showShortToastMessage("Start point " + latLon.getLatitude() + " " + latLon.getLongitude());
-				} else if (finish == null) {
-					finish = latLon;
-					app.showShortToastMessage("Finish point " + latLon.getLatitude() + " " + latLon.getLongitude());
-					updateStartStopButtonState();
-				}
+				finish = latLon;
+				app.showShortToastMessage("Destination: " + latLon.getLatitude() + ", " + latLon.getLongitude());
+				updateStartStopButtonState();
 				return true;
 			};
 		}
@@ -194,13 +215,22 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 	}
 
 	private void startNavigation() {
-		if (start == null || finish == null) {
-			app.showShortToastMessage("Chọn điểm bắt đầu và điểm kết thúc trước");
+		if (finish == null) {
+			app.showShortToastMessage("Please select destination by long clicking on the map");
 			return;
 		}
+
+		Location currentLocation = locationProvider != null ? locationProvider.getLastKnownLocation() : null;
+		if (currentLocation == null) {
+			app.showShortToastMessage("Unable to get current location. Please enable location services.");
+			return;
+		}
+
+		LatLon start = new LatLon(currentLocation.getLatitude(), currentLocation.getLongitude());
+
 		OsmandSettings settings = app.getSettings();
 		RoutingHelper routingHelper = app.getRoutingHelper();
-		settings.setApplicationMode(ApplicationMode.CAR);
+		settings.setApplicationMode(ApplicationMode.BICYCLE);
 
 		TargetPointsHelper targetPointsHelper = app.getTargetPointsHelper();
 
@@ -213,16 +243,17 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 		routingHelper.setFollowingMode(true);
 		routingHelper.setRoutePlanningMode(false);
 		routingHelper.notifyIfRouteIsCalculated();
-		routingHelper.setCurrentLocation(app.getLocationProvider().getLastKnownLocation(), false);
+		routingHelper.setCurrentLocation(currentLocation, false);
 
 		OsmAndLocationProvider.requestFineLocationPermissionIfNeeded(this);
 
-		app.showShortToastMessage("StartNavigation from " + start.getLatitude() + " " + start.getLongitude()
-				+ " to " + finish.getLatitude() + " " + finish.getLongitude());
+		app.showShortToastMessage("Navigation started from current location to " + finish.getLatitude() + ", " + finish.getLongitude());
 
 		navigationActive = true;
-		followLocationEnabled = true;
+//		followLocationEnabled = true;
+		followNavigationEnabled = true;
 		updateFollowLocationButtonState();
+		updateFollowNavigationButtonState();
 		updateStartStopButtonState();
 
 		refreshRouteInfoView();
@@ -247,12 +278,12 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 			String distanceToTurn = OsmAndFormatter.getFormattedDistance(Math.max(info.distanceTo, 0), app);
 			nextTurnDistanceText.setText(getString(R.string.route_info_next_turn_format, distanceToTurn));
 			nextTurnText.setText(instruction != null ? instruction : getString(R.string.route_info_no_turn));
-			updateTurnIcon(instruction);
+			updateTurnIcon(info.directionInfo, instruction);
 		} else {
 			nextTurnDistanceText.setText(R.string.route_info_distance_placeholder);
 			nextTurnText.setText(R.string.route_info_no_turn);
-			if (nextTurnIconText != null) {
-				nextTurnIconText.setText("⬆");
+			if (nextTurnIcon != null) {
+				nextTurnIcon.setImageResource(R.drawable.ic_turn_straight);
 			}
 		}
 
@@ -260,6 +291,7 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 		if (remaining > 0) {
 			String remainingFormatted = OsmAndFormatter.getFormattedDistance(remaining, app);
 			String timeFormatted = OsmAndFormatter.getFormattedDurationShortMinutes(routingHelper.getLeftTime());
+
 			remainingDistanceText.setText(getString(R.string.route_info_remaining_with_time_format,
 					remainingFormatted, timeFormatted));
 		} else {
@@ -267,22 +299,67 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 		}
 	}
 
-	private void updateTurnIcon(@Nullable String instruction) {
-		if (nextTurnIconText == null) {
+	private void updateTurnIcon(@Nullable Object directionInfo, @Nullable String instruction) {
+		if (nextTurnIcon == null) {
 			return;
 		}
+
+		int iconResId = R.drawable.ic_turn_straight; // default
+
+		// Try to get TurnType from DirectionInfo using reflection
+		try {
+			if (directionInfo != null) {
+				java.lang.reflect.Field turnTypeField = directionInfo.getClass().getDeclaredField("turnType");
+				turnTypeField.setAccessible(true);
+				Object turnType = turnTypeField.get(directionInfo);
+
+				if (turnType != null) {
+					String turnTypeStr = turnType.toString();
+					iconResId = getTurnIconResource(turnTypeStr);
+				}
+			}
+		} catch (Exception e) {
+			// Fallback to instruction text parsing
+			if (instruction != null) {
+				iconResId = getTurnIconFromInstruction(instruction);
+			}
+		}
+
+		nextTurnIcon.setImageResource(iconResId);
+	}
+
+	private int getTurnIconResource(String turnType) {
+		if (turnType == null) {
+			return R.drawable.ic_turn_straight;
+		}
+		String lower = turnType.toLowerCase();
+		if (lower.contains("left") || lower.contains("tl") || lower.contains("tsll")) {
+			return R.drawable.ic_turn_left;
+		} else if (lower.contains("right") || lower.contains("tr") || lower.contains("tslr")) {
+			return R.drawable.ic_turn_right;
+		} else if (lower.contains("straight") || lower.contains("ts") || lower.contains("c")) {
+			return R.drawable.ic_turn_straight;
+		} else if (lower.contains("uturn") || lower.contains("tu")) {
+			return R.drawable.ic_turn_uturn;
+		}
+		return R.drawable.ic_turn_straight;
+	}
+
+	private int getTurnIconFromInstruction(String instruction) {
 		if (instruction == null) {
-			nextTurnIconText.setText("⬆");
-			return;
+			return R.drawable.ic_turn_straight;
 		}
 		String lower = instruction.toLowerCase(java.util.Locale.getDefault());
-		if (lower.contains("left")) {
-			nextTurnIconText.setText("↰");
-		} else if (lower.contains("right")) {
-			nextTurnIconText.setText("↱");
-		} else {
-			nextTurnIconText.setText("⬆");
+		if (lower.contains("left") || lower.contains("rẽ trái") || lower.contains("quẹo trái")) {
+			return R.drawable.ic_turn_left;
+		} else if (lower.contains("right") || lower.contains("rẽ phải") || lower.contains("quẹo phải")) {
+			return R.drawable.ic_turn_right;
+		} else if (lower.contains("straight") || lower.contains("thẳng") || lower.contains("tiếp tục")) {
+			return R.drawable.ic_turn_straight;
+		} else if (lower.contains("u-turn") || lower.contains("quay đầu")) {
+			return R.drawable.ic_turn_uturn;
 		}
+		return R.drawable.ic_turn_straight;
 	}
 
 	private void toggleFollowLocation() {
@@ -305,11 +382,51 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 				: R.string.follow_location_enable);
 	}
 
+	private void toggleFollowNavigation() {
+		if (!navigationActive) {
+			return;
+		}
+		followNavigationEnabled = !followNavigationEnabled;
+
+		updateFollowNavigationCamera();
+		updateFollowNavigationButtonState();
+	}
+
+	private void updateFollowNavigationCamera(){
+		RoutingHelper routingHelper = app.getRoutingHelper();
+
+		if(followNavigationEnabled){
+			Location currentLocation = locationProvider != null ? locationProvider.getLastKnownLocation() : null;
+			if (currentLocation == null) {
+				app.showShortToastMessage("Unable to get current location. Please enable location services.");
+				return;
+			}
+			settings.FOLLOW_THE_ROUTE.set(true);
+			routingHelper.setFollowingMode(true);
+			routingHelper.setRoutePlanningMode(false);
+			routingHelper.notifyIfRouteIsCalculated();
+			routingHelper.setCurrentLocation(currentLocation, false);
+		}else{
+			settings.FOLLOW_THE_ROUTE.set(false);
+			routingHelper.setFollowingMode(false);
+		}
+	}
+
+	private void updateFollowNavigationButtonState() {
+		if (followNavigationButton == null) {
+			return;
+		}
+		followNavigationButton.setEnabled(navigationActive);
+		followNavigationButton.setText(followNavigationEnabled
+				? R.string.follow_navigation_disable
+				: R.string.follow_navigation_enable);
+	}
+
 	private void updateStartStopButtonState() {
 		if (startStopNavigationButton == null) {
 			return;
 		}
-		boolean canStart = start != null && finish != null;
+		boolean canStart = finish != null && !navigationActive;
 		startStopNavigationButton.setEnabled(canStart || navigationActive);
 		startStopNavigationButton.setText(navigationActive
 				? R.string.stop_navigation
@@ -324,6 +441,7 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 		if (routingHelper != null) {
 			routingHelper.setCurrentLocation(location, false);
 		}
+		// Follow location if enabled
 		if (followLocationEnabled) {
 			centerMapOnLocation(location);
 		}
@@ -350,7 +468,10 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
 		}
 
 		navigationActive = false;
+		finish = null;
+		followNavigationEnabled = false;
 		routeInfoContainer.setVisibility(View.GONE);
+		updateFollowNavigationButtonState();
 		updateStartStopButtonState();
 	}
 

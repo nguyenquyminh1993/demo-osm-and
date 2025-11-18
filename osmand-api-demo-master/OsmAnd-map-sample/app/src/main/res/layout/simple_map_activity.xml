@@ -54,13 +54,13 @@
 				android:orientation="horizontal"
 				android:gravity="center_vertical">
 
-				<TextView
-					android:id="@+id/next_turn_icon_text"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:text="⬆"
-					android:textSize="28sp"
-					android:layout_marginEnd="8dp" />
+				<ImageView
+					android:id="@+id/next_turn_icon"
+					android:layout_width="32dp"
+					android:layout_height="32dp"
+					android:layout_marginEnd="8dp"
+					android:contentDescription="@string/route_info_no_turn"
+					android:scaleType="fitCenter" />
 
 				<LinearLayout
 					android:layout_width="0dp"
@@ -106,6 +106,15 @@
 		android:layout_marginHorizontal="@dimen/content_padding"
 		android:layout_marginBottom="@dimen/content_padding_half"
 		android:text="@string/follow_location_enable" />
+
+	<com.google.android.material.button.MaterialButton
+		android:id="@+id/follow_navigation_button"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="@dimen/content_padding"
+		android:layout_marginBottom="@dimen/content_padding_half"
+		android:enabled="false"
+		android:text="@string/follow_navigation_enable" />
 
 	<com.google.android.material.button.MaterialButton
 		android:id="@+id/start_stop_navigation_button"
