@@ -47,13 +47,6 @@ public class SimpleMapActivity extends OsmandActionBarActivity {
 		toolbar.setNavigationIcon(AndroidUtils.getNavigationIconResId(app));
 		toolbar.setNavigationOnClickListener(v -> onBackPressed());
 
-		CompoundButton openglSwitch = findViewById(R.id.opengl_switch);
-		openglSwitch.setChecked(app.getSettings().USE_OPENGL_RENDER.get());
-		openglSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			app.getSettings().USE_OPENGL_RENDER.set(isChecked);
-			RestartActivity.doRestart(this);
-		});
-
 		//set start location and zoom for map
 		mapTileView.setIntZoom(14);
 		mapTileView.setLatLon(52.3704312, 4.8904288);

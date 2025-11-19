@@ -37,6 +37,15 @@
 		android:text="@string/downloads" />
 
 	<Button
+		android:id="@+id/offline_maps_button"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginHorizontal="@dimen/content_padding"
+		android:layout_marginVertical="@dimen/content_padding_half"
+		android:minHeight="@dimen/route_info_control_buttons_height"
+		android:text="Offline Maps (Custom)" />
+
+	<Button
 		android:id="@+id/simple_map_button"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"

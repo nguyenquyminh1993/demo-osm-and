@@ -37,6 +37,15 @@ public class MainActivity extends OsmandActionBarActivity {
 			startActivity(newIntent);
 		});
 
+		// Add button for custom offline maps activity
+//		View offlineMapsButton = findViewById(R.id.offline_maps_button);
+//		if (offlineMapsButton != null) {
+//			offlineMapsButton.setOnClickListener(v -> {
+//				Intent newIntent = new Intent(MainActivity.this, OfflineMapsActivity.class);
+//				startActivity(newIntent);
+//			});
+//		}
+
 		findViewById(R.id.simple_map_button).setOnClickListener(v -> {
 			Intent newIntent = new Intent(MainActivity.this, SimpleMapActivity.class);
 			startActivity(newIntent);

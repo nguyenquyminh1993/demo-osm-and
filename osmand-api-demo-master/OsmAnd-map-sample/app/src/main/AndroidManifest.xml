@@ -42,6 +42,7 @@
 		<activity android:name=".NavigateMapActivity" />
 		<activity android:name=".PointsOnMapActivity" />
 		<activity android:name=".FullMapActivity" />
+		<activity android:name=".OfflineMapsActivity" />
 
 		<!--used for restart after switch between opengl and legacy renderer-->
 		<activity
