@@ -12,6 +12,7 @@ import android.annotation.SuppressLint;
 import net.osmand.Location;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
@@ -27,11 +28,18 @@ import com.google.android.material.button.MaterialButton;
 import net.osmand.data.LatLon;
 import net.osmand.data.PointDescription;
 import net.osmand.data.RotatedTileBox;
+import net.osmand.plus.AppInitializeListener;
+import net.osmand.plus.AppInitializer;
 import net.osmand.plus.OsmAndLocationProvider;
 import net.osmand.plus.OsmAndLocationProvider.OsmAndLocationListener;
 import net.osmand.plus.OsmandApplication;
 import net.osmand.plus.activities.OsmandActionBarActivity;
 import net.osmand.plus.base.MapViewTrackingUtilities;
+import net.osmand.plus.download.DownloadActivityType;
+import net.osmand.plus.download.DownloadIndexesThread;
+import net.osmand.plus.download.DownloadResources;
+import net.osmand.plus.download.DownloadValidationManager;
+import net.osmand.plus.download.IndexItem;
 import net.osmand.plus.helpers.AndroidUiHelper;
 import net.osmand.plus.helpers.TargetPointsHelper;
 import net.osmand.plus.routing.IRoutingDataUpdateListener;
@@ -49,9 +57,12 @@ import net.osmand.plus.views.MapViewWithLayers;
 import net.osmand.plus.views.OsmandMapTileView;
 import net.osmand.plus.views.OsmandMapTileView.OnLongClickListener;
 
-public class NavigateMapActivity extends OsmandActionBarActivity {
+import java.io.IOException;
+import java.util.List;
 
-    private OsmandApplication app;
+public class NavigateMapActivity2 extends OsmandActionBarActivity implements AppInitializeListener, DownloadIndexesThread.DownloadEvents {
+
+//    private OsmandApplication app;
     private OsmandMapTileView mapTileView;
     private MapViewWithLayers mapViewWithLayers;
     private OnLongClickListener clickListener;
@@ -95,7 +106,8 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
         modeFootButton = findViewById(R.id.mode_foot_button);
 
         app = (OsmandApplication) getApplication();
-
+        app.getAppInitializer().addListener(this);
+        setupDownloadListener();
         locationProvider = app.getLocationProvider();
 //        if (followLocationButton != null) {
 //            followLocationButton.setOnClickListener(v -> toggleFollowLocation());
@@ -153,6 +165,27 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
         } else {
             mapTileView.setIntZoom(14);
             mapTileView.setLatLon(24.717957, 125.344340);
+        }
+    }
+
+    private void getIndexItems(LatLon latLon){
+
+        DownloadIndexesThread downloadThread = app.getDownloadThread();
+        DownloadResources indexes = downloadThread.getIndexes();
+
+        // If indexes haven't been loaded from internet, try to reload them
+        if (!indexes.isDownloadedFromInternet && !indexes.downloadFromInternetFailed) {
+            Log.d("minh", "Indexes not loaded yet. Triggering reload...");
+            downloadThread.runReloadIndexFilesSilent();
+            // Return empty list for now, indexes will be available after reload completes
+            return ;
+        }
+        try {
+            final List<IndexItem> list  =  DownloadResources.findIndexItemsAt(app, latLon, DownloadActivityType.NORMAL_FILE);
+            Log.d("minh"," list:" + list.size());
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -516,6 +549,11 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
         modeFootButton.setChecked(mode == ApplicationMode.PEDESTRIAN);
     }
 
+    private void downloadIndexItem(@NonNull IndexItem item) {
+        DownloadValidationManager validationManager = new DownloadValidationManager(app);
+        validationManager.startDownload(this, item);
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
@@ -532,6 +570,52 @@ public class NavigateMapActivity extends OsmandActionBarActivity {
     protected void onDestroy() {
         super.onDestroy();
         mapViewWithLayers.onDestroy();
+        app.getAppInitializer().removeListener(this);
+
+        DownloadIndexesThread downloadThread = app.getDownloadThread();
+        downloadThread.resetUiActivity(this);
     }
 
+    @Override
+    public void onStart(@NonNull AppInitializer init) {
+        AppInitializeListener.super.onStart(init);
+    }
+
+    @Override
+    public void onFinish(@NonNull AppInitializer init) {
+        AppInitializeListener.super.onFinish(init);
+        getIndexItems(new LatLon(24.717957, 125.344340));
+    }
+    private void setupDownloadListener() {
+        DownloadIndexesThread downloadThread = app.getDownloadThread();
+        downloadThread.setUiActivity(this); // Set activity làm listener
+    }
+
+    @Override
+    public void onUpdatedIndexesList() {
+        DownloadIndexesThread.DownloadEvents.super.onUpdatedIndexesList();
+        Log.d("minh","onUpdatedIndexesList");
+        getIndexItems(new LatLon(24.717957, 125.344340));
+
+    }
+
+    @Override
+    public void downloadInProgress() {
+        DownloadIndexesThread.DownloadEvents.super.downloadInProgress();
+        final float task =app.getDownloadThread().getCurrentRunningTask().getDownloadProgress();
+        Log.d("minh","downloadInProgress " + task);
+
+    }
+
+    @Override
+    public void downloadingError(@NonNull String error) {
+        DownloadIndexesThread.DownloadEvents.super.downloadingError(error);
+        Log.d("minh","downloadingError");
+
+    }
+
+    @Override
+    public void downloadHasFinished() {
+        DownloadIndexesThread.DownloadEvents.super.downloadHasFinished();
+    }
 }
