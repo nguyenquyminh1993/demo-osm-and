@@ -28,11 +28,7 @@
 		</provider>
 
 		<activity
-			android:name=".MainActivity"/>
-
-
-		<activity
-			android:name=".NavigateMapActivity"
+			android:name=".MainActivity"
 			android:exported="true">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
@@ -41,9 +37,6 @@
 				<category android:name="android.intent.category.MULTIWINDOW_LAUNCHER" />
 			</intent-filter>
 		</activity>
-
-		<activity android:name=".SimpleMapActivity" />
-		<activity android:name=".PointsOnMapActivity" />
 		<activity android:name=".FullMapActivity" />
 
 		<!--used for restart after switch between opengl and legacy renderer-->
