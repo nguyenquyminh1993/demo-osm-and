@@ -13,9 +13,13 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
+import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
 import net.osmand.data.PointDescription
+import net.osmand.data.ValueHolder
+import net.osmand.map.ITileSource
+import net.osmand.map.TileSourceManager
 import net.osmand.plus.AppInitializeListener
 import net.osmand.plus.AppInitializer
 import net.osmand.plus.OsmAndLocationProvider
@@ -29,9 +33,12 @@ import net.osmand.plus.download.DownloadResources
 import net.osmand.plus.download.DownloadValidationManager
 import net.osmand.plus.download.IndexItem
 import net.osmand.plus.helpers.AndroidUiHelper
+import net.osmand.plus.helpers.ToastHelper
+import net.osmand.plus.routing.IRouteInformationListener
 import net.osmand.plus.routing.IRoutingDataUpdateListener
 import net.osmand.plus.routing.NextDirectionInfo
 import net.osmand.plus.settings.backend.ApplicationMode
+import net.osmand.plus.settings.backend.OsmandSettings
 import net.osmand.plus.utils.AndroidUtils
 import net.osmand.plus.utils.InsetTarget
 import net.osmand.plus.utils.InsetsUtils
@@ -40,12 +47,14 @@ import net.osmand.plus.utils.NativeUtilities
 import net.osmand.plus.utils.OsmAndFormatter
 import net.osmand.plus.views.MapViewWithLayers
 import net.osmand.plus.views.OsmandMapTileView
+import net.osmand.plus.views.layers.MapTileLayer
 import java.io.File
 import java.io.IOException
 import java.util.Locale
 import kotlin.math.max
 
-class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadEvents {
+class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadEvents,
+    IRouteInformationListener {
     private lateinit var osmandApp: OsmandApplication
     private var mapTileView: OsmandMapTileView? = null
     private var mapViewWithLayers: MapViewWithLayers? = null
@@ -99,7 +108,11 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         }
     }
 
+    private var routeListener: IRouteInformationListener? = null
+
     private var finish: LatLon? = null
+
+    private var applicationMode: ApplicationMode? = ApplicationMode.PEDESTRIAN
 
 
     public override fun onCreate(savedInstanceState: Bundle?) {
@@ -123,6 +136,9 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         app = application as OsmandApplication
         app?.appInitializer?.addListener(this)
         setupDownloadListener()
+        setupRouteListener()
+        OsmAndLocationProvider.requestFineLocationPermissionIfNeeded(this)
+
         locationProvider = app?.locationProvider
 
         //        if (followLocationButton != null) {
@@ -293,8 +309,7 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
 
         val settings = app?.settings ?: return
         val routingHelper = app?.routingHelper ?: return
-        settings.setApplicationMode(ApplicationMode.PEDESTRIAN)
-
+        settings.setApplicationMode(applicationMode)
         val targetPointsHelper = app?.targetPointsHelper ?: return
 
         targetPointsHelper.setStartPoint(
@@ -549,9 +564,9 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
             return
         }
         val settings = app?.settings
-        val currentMode = settings?.APPLICATION_MODE?.get()
+        applicationMode = settings?.APPLICATION_MODE?.get()
 
-        updateVehicleModeSelection(currentMode!!)
+        updateVehicleModeSelection(applicationMode)
 
         modeCarButton?.setOnClickListener { v: View? ->
             onVehicleModeSelected(
@@ -584,8 +599,8 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         updateVehicleModeSelection(mode)
     }
 
-    private fun updateVehicleModeSelection(mode: ApplicationMode) {
-        if (modeCarButton == null || modeBikeButton == null || modeFootButton == null) {
+    private fun updateVehicleModeSelection(mode: ApplicationMode?) {
+        if (modeCarButton == null || modeBikeButton == null || modeFootButton == null || mode == null) {
             return
         }
         modeCarButton?.isChecked = mode === ApplicationMode.CAR
@@ -638,31 +653,31 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
             LatLon(24.717957, 125.344340) //Todo remove in prod
         }
 
-            if (areIndexesReady().not()) {
-                // Ensure indexes are loaded first
-                ensureIndexesLoaded()
-            } else {
-                // Get maps at location
-                val maps: List<IndexItem> =
-                    getMapsAtLocationSafely(latLon, DownloadActivityType.NORMAL_FILE)
-                Log.d("minh", "Found " + maps.size + " maps at location")
+        if (areIndexesReady().not()) {
+            // Ensure indexes are loaded first
+            ensureIndexesLoaded()
+        } else {
+            // Get maps at location
+            val maps: List<IndexItem> =
+                getMapsAtLocationSafely(latLon, DownloadActivityType.NORMAL_FILE)
+            Log.d("minh", "Found " + maps.size + " maps at location")
 
-                // Download the first map if available
-                if (maps.isNotEmpty()) {
-                    val firstMap = maps[0]
-                    // Check if already downloaded
-                    if (firstMap.isDownloaded) {
-                        Log.d("minh", "Map already downloaded: " + firstMap.fileName)
-                    } else if (isDownloading(firstMap)) {
-                        Log.d(
-                            "minh",
-                            "Map is currently downloading: " + firstMap.fileName
-                        )
-                    } else {
-                        downloadIndexItem(firstMap)
-                    }
+            // Download the first map if available
+            if (maps.isNotEmpty()) {
+                val firstMap = maps[0]
+                // Check if already downloaded
+                if (firstMap.isDownloaded) {
+                    Log.d("minh", "Map already downloaded: " + firstMap.fileName)
+                } else if (isDownloading(firstMap)) {
+                    Log.d(
+                        "minh",
+                        "Map is currently downloading: " + firstMap.fileName
+                    )
+                } else {
+                    downloadIndexItem(firstMap)
                 }
             }
+        }
     }
 
     private fun ensureIndexesLoaded() {
@@ -714,36 +729,276 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         }
     }
 
-    private fun showDownloadIndexProgress(percentDownload: Float){
+    private fun showDownloadIndexProgress(percentDownload: Float) {
         lnProgressBar?.visibility = View.VISIBLE
         progressBar?.visibility = View.VISIBLE
         progressBar?.progress = percentDownload.toInt()
     }
 
-    private fun hideDownloadIndexProgress(){
+    private fun hideDownloadIndexProgress() {
         lnProgressBar?.visibility = View.GONE
         progressBar?.visibility = View.GONE
     }
 
+    private fun addShigiraResortMapOverlay() {
+        val overlayName = "Shigira Resort Map"
+        val urlTemplate = "https://shigira-resort-map.resort-cloud.com/hot/{z}/{x}/{y}.png"
+        addMapOverlay(overlayName, urlTemplate, 1, 18)
 
-    override fun onPause() {
-        super.onPause()
-        mapViewWithLayers?.onPause()
-        mapTileView?.setOnLongClickListener(null)
-        app?.routingHelper?.removeRouteDataListener(routingDataUpdateListener)
+    }
+
+    private fun setMapLanguage(localeCode: String): Boolean {
+        try {
+            val settings = app.settings
+            // Set map preferred locale
+            settings.MAP_PREFERRED_LOCALE.set(localeCode)
+
+            app.osmandMap.mapView.refreshMapComplete()
+
+            Log.d(
+                "NavigationActivity",
+                "✅ Map language set to: " + (if (localeCode.isEmpty()) "native/local names" else localeCode)
+            )
+            return true
+        } catch (e: java.lang.Exception) {
+            Log.e("NavigationActivity", "Error setting map language: $localeCode", e)
+            return false
+        }
+    }
+
+    private fun isOverlayActive(overlayNameValue: String): Boolean {
+        return overlayNameValue == app.settings.MAP_OVERLAY.get()
+    }
+
+    private var overlayLayer: MapTileLayer? = null
+
+    private fun addMapOverlay(
+        overlayName: String, urlTemplate: String?,
+        minZoom: Int, maxZoom: Int
+    ): Boolean {
+        try {
+            // Normalize URL template: {z}/{x}/{y} -> {0}/{1}/{2}
+            val normalizedUrl: String =
+                TileSourceManager.TileSourceTemplate.normalizeUrl(urlTemplate)
+
+
+            // Create TileSourceTemplate
+            // Parameters: name, urlTemplate, ext, maxZoom, minZoom, tileSize, bitDensity, avgSize
+            val tileSource: TileSourceManager.TileSourceTemplate =
+                TileSourceManager.TileSourceTemplate(
+                    overlayName,
+                    normalizedUrl,
+                    ".png",  // File extension
+                    maxZoom,
+                    minZoom,
+                    256,  // Tile size (256x256 pixels)
+                    16,  // Bit density
+                    18000 // Average tile size in bytes
+                )
+
+
+            // Install tile source (creates directory and meta info file)
+            val installed = app.settings.installTileSource(tileSource)
+            if (!installed) {
+                Log.e("NavigationActivity", "Failed to install tile source: $overlayName")
+                return false
+            }
+
+
+            // Set as overlay
+            app.settings.MAP_OVERLAY.set(overlayName)
+            app.settings.MAP_OVERLAY_PREVIOUS.set(overlayName)
+
+
+            // Apply overlay immediately (không cần MapActivity)
+            // Plugin có thể access map view trực tiếp từ app.getOsmandMap().getMapView()
+            applyOverlayToMap()
+
+            Log.d("NavigationActivity", "✅ Map overlay added successfully: $overlayName")
+            return true
+        } catch (e: java.lang.Exception) {
+            Log.e("NavigationActivity", "Error adding map overlay: $overlayName", e)
+            return false
+        }
+    }
+
+    private fun applyOverlayToMap() {
+        try {
+            val settings: OsmandSettings = app.settings
+            val mapView = app.osmandMap.mapView
+
+
+            // Get overlay tile source từ settings
+            val overlayName: String = settings.MAP_OVERLAY.get()
+            if (overlayName == null || overlayName.isEmpty()) {
+                // Remove overlay nếu setting là null
+                removeOverlayLayer()
+                return
+            }
+
+            val tileSource: ITileSource? = settings.getTileSourceByName(overlayName, false)
+            if (tileSource == null) {
+                Log.w("NavigationActivity", "⚠️ Tile source not found: $overlayName")
+                return
+            }
+
+
+            // Tạo overlay layer nếu chưa có
+            if (overlayLayer == null) {
+                overlayLayer = MapTileLayer(app, false)
+            }
+
+
+            // Check if layer already has this map
+            if (tileSource.equals(overlayLayer!!.map)) {
+                Log.d("NavigationActivity", "Overlay already applied")
+                return
+            }
+
+
+            // Add layer vào map view nếu chưa có
+            if (!mapView.isLayerExists(overlayLayer!!)) {
+                mapView.addLayer(overlayLayer!!, 0f)
+            }
+
+
+            // Set map cho layer
+            overlayLayer?.map = tileSource
+
+
+            // Set transparency
+            val transparency: Int = settings.MAP_OVERLAY_TRANSPARENCY.get()
+            overlayLayer?.alpha = transparency
+
+
+            // Refresh map
+            mapView.refreshMap()
+
+            Log.d("NavigationActivity", "✅ Map overlay applied immediately to map view")
+        } catch (e: java.lang.Exception) {
+            // Safely handle - overlay setting is already saved
+            Log.w("NavigationActivity", "⚠️ Could not apply overlay immediately: " + e.message)
+            Log.d(
+                "NavigationActivity",
+                "Overlay setting is saved and will be applied when map opens"
+            )
+        }
+    }
+
+    private fun removeOverlayLayer() {
+        try {
+            if (overlayLayer != null) {
+                val mapView = app.osmandMap.mapView
+                if (mapView.isLayerExists(overlayLayer!!)) {
+                    mapView.removeLayer(overlayLayer!!)
+                }
+                overlayLayer?.map = null
+                mapView.refreshMap()
+                Log.d("NavigationActivity", "✅ Overlay layer removed from map view")
+            }
+        } catch (e: java.lang.Exception) {
+            Log.w("NavigationActivity", "⚠️ Could not remove overlay layer: " + e.message)
+        }
+    }
+
+    fun setVoiceLanguage(languageCode: String, useTTS: Boolean): Boolean {
+        try {
+            val settings = app.settings
+            val appMode = app.routingHelper.appMode
+
+
+            // Build voice provider name
+            val voiceProvider = if (useTTS) {
+                // TTS format: "en-tts", "vi-tts", etc.
+                languageCode + IndexConstants.VOICE_PROVIDER_SUFFIX
+            } else {
+                // Recorded voice format: "en", "vi", etc.
+                languageCode
+            }
+
+
+            // Set voice provider
+            settings.VOICE_PROVIDER.setModeValue(appMode, voiceProvider)
+
+            // Unmute voice if it was muted
+            if (settings.VOICE_MUTE.getModeValue(appMode)) {
+                settings.VOICE_MUTE.setModeValue(appMode, false)
+                app.routingHelper.voiceRouter.setMuteForMode(appMode, false)
+            }
+
+
+            // Initialize voice command player
+            app.initVoiceCommandPlayer(this, appMode, null, false, false, false, false)
+
+            Log.d(
+                "NavigationActivity",
+                "✅ Voice language set to: " + languageCode + (if (useTTS) " (TTS)" else " (Recorded)")
+            )
+            return true
+        } catch (e: java.lang.Exception) {
+            Log.e("NavigationActivity", "Error setting voice language: $languageCode", e)
+            return false
+        }
+    }
+
+    private fun disableToasts() {
+        val toastHelper: ToastHelper = app.toastHelper
+        toastHelper.setDisplayHandler(object : ToastHelper.ToastDisplayHandler {
+
+            override fun showSimpleToast(p0: String, p1: Boolean) {
+
+            }
+
+            override fun showSimpleToast(textId: Int, isLong: Boolean, vararg args: Any?) {
+                // Do nothing - toast disabled
+            }
+
+            override fun showCarToast(p0: String, p1: Boolean) {
+
+            }
+
+            override fun showCarToast(textId: Int, isLong: Boolean, vararg args: Any?) {
+                // Do nothing - toast disabled
+            }
+        })
+        Log.d("NavigationActivity", "🔇 Toasts disabled")
+    }
+
+    private fun removeRoutingListener(){
+        routeListener?.let {
+            app?.routingHelper?.removeListener(it)
+        }
+    }
+
+    private fun resetDownload(){
+        val downloadThread = app?.downloadThread
+        downloadThread?.resetUiActivity(this)
+    }
+
+    private fun removeLocationListener(){
         if (locationProvider != null) {
             locationProvider?.removeLocationListener(locationListener)
             locationProvider?.pauseAllUpdates()
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        mapViewWithLayers?.onPause()
+        mapTileView?.setOnLongClickListener(null)
+        app?.routingHelper?.removeRouteDataListener(routingDataUpdateListener)
+        removeLocationListener()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        stopNavigation()
+        removeOverlayLayer()
+        removeLocationListener()
         mapViewWithLayers?.onDestroy()
         app?.appInitializer?.removeListener(this)
-
-        val downloadThread = app?.downloadThread
-        downloadThread?.resetUiActivity(this)
+        removeRoutingListener()
+        resetDownload()
     }
 
     override fun onStart(init: AppInitializer) {
@@ -752,7 +1007,29 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
 
     override fun onFinish(init: AppInitializer) {
         super.onFinish(init)
+        setupMap()
         downloadMap()
+    }
+
+    private fun setupMap() {
+        disableToasts()
+        setMapLanguage("ja")
+        setVoiceEnabled(false)
+        addShigiraResortMapOverlay()
+    }
+
+    fun enableVoice() {
+        setVoiceEnabled(true)
+    }
+
+    fun setVoiceEnabled(enabled: Boolean) {
+        val settings = app.settings
+        val appMode = app.routingHelper.appMode
+
+        settings.VOICE_MUTE.setModeValue(appMode, !enabled)
+        app.routingHelper.voiceRouter.setMuteForMode(appMode, !enabled)
+
+        Log.d("NavigationActivity", if (enabled) "✅ Voice enabled" else "🔇 Voice disabled")
     }
 
     private fun setupDownloadListener() {
@@ -760,10 +1037,18 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         downloadThread?.setUiActivity(this) // Set activity làm listener
     }
 
+    private fun setupRouteListener() {
+        routeListener = this
+        routeListener?.let {
+            app?.routingHelper?.addListener(it)
+        }
+    }
+
     override fun onUpdatedIndexesList() {
         super.onUpdatedIndexesList()
         Log.d("minh", "onUpdatedIndexesList")
         downloadMap()
+        addShigiraResortMapOverlay()
     }
 
     override fun downloadInProgress() {
@@ -784,8 +1069,21 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         super.downloadHasFinished()
         Log.d("minh", "downloadHasFinished")
         hideDownloadIndexProgress()
+        setMapLanguage("ja")
         app.downloadThread.updateLoadedFiles()
         refreshUIAfterDownload()
+    }
+
+    override fun newRouteIsCalculated(p0: Boolean, p1: ValueHolder<Boolean>?) {
+    }
+
+    override fun routeWasCancelled() {
+    }
+
+    override fun routeWasFinished() {
+        stopNavigation()
+        updateFollowAndOverViewButtonState()
+        updateFollowLocationButtonState()
     }
 
 
