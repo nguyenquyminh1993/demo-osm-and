@@ -568,8 +568,6 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         if (modeCarButton == null || modeBikeButton == null || modeFootButton == null) {
             return
         }
-        val settings = app?.settings
-        applicationMode = settings?.APPLICATION_MODE?.get()
 
         updateVehicleModeSelection(applicationMode)
 

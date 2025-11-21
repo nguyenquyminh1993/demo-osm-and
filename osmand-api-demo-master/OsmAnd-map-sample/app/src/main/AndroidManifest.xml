@@ -6,7 +6,7 @@
 	android:versionName="1.2">
 
 	<application
-		android:name=".SampleApplication"
+		android:name=".NavigationApplication"
 		android:allowBackup="true"
 		android:configChanges="locale"
 		android:icon="@mipmap/sample_app"
@@ -28,7 +28,11 @@
 		</provider>
 
 		<activity
-			android:name=".MainActivity"
+			android:name=".MainActivity"/>
+
+
+		<activity
+			android:name=".NavigateMapActivity"
 			android:exported="true">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
@@ -39,8 +43,6 @@
 		</activity>
 
 		<activity android:name=".SimpleMapActivity" />
-		<activity android:name=".NavigateMapActivity2" />
-		<activity android:name=".NavigateMapActivity" />
 		<activity android:name=".PointsOnMapActivity" />
 		<activity android:name=".FullMapActivity" />
 
