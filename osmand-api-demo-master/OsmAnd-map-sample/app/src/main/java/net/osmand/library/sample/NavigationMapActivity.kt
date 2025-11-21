@@ -95,16 +95,19 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
     private var lnProgressBar: LinearLayout? = null
 
     private var followLocationEnabled = false
+    private var hasUpdateFirstOpenMap = false
     private var navigationActive = false
+    private var isIndexReady = false
+    private var hasDownloadIndex = false
+
     private val nextDirectionInfo = NextDirectionInfo()
     private val routingDataUpdateListener =
         IRoutingDataUpdateListener { runOnUiThread { this.refreshRouteInfoView() } }
     private var locationProvider: OsmAndLocationProvider? = null
     private val locationListener = OsmAndLocationListener { location: Location? ->
         runOnUiThread {
-            onUserLocationUpdated(
-                location
-            )
+            updateLocationWhenInit(location)
+            downloadMapIfNeed(location)
         }
     }
 
@@ -138,7 +141,7 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         setupDownloadListener()
         setupRouteListener()
         OsmAndLocationProvider.requestFineLocationPermissionIfNeeded(this)
-
+        ensureIndexesLoaded()
         locationProvider = app?.locationProvider
 
         //        if (followLocationButton != null) {
@@ -189,13 +192,7 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
             if (lastKnown != null) {
                 mapTileView?.setIntZoom(17)
                 mapTileView?.setLatLon(lastKnown.latitude, lastKnown.longitude)
-            } else {
-                mapTileView?.setIntZoom(17)
-                mapTileView?.setLatLon(24.717957, 125.344340)
             }
-        } else {
-            mapTileView?.setIntZoom(14)
-            mapTileView?.setLatLon(24.717957, 125.344340)
         }
     }
 
@@ -523,21 +520,29 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
     }
 
 
-    private fun onUserLocationUpdated(location: Location?) {
-        if (location == null) {
+    private fun downloadMapIfNeed(location: Location?) {
+        if (location == null || isIndexReady.not() || hasDownloadIndex) {
+            return
+        }
+        downloadMap(location)
+    }
+
+    private fun updateLocationWhenInit(location: Location?) {
+        if (location == null || hasUpdateFirstOpenMap) {
             return
         }
         val routingHelper = app?.routingHelper
         routingHelper?.setCurrentLocation(location, false)
-        // Follow location if enabled
-        if (followLocationEnabled) {
-            centerMapOnLocation(location)
-        }
+        hasUpdateFirstOpenMap = true
+        centerMapOnLocation(location)
+
         refreshRouteInfoView()
     }
 
     private fun centerMapOnLocation(location: Location) {
         if (mapTileView != null) {
+            mapTileView?.setLatLon(location.latitude, location.longitude)
+            mapTileView?.setIntZoom(17)
             mapTileView?.setLatLon(location.latitude, location.longitude)
         }
     }
@@ -644,17 +649,10 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         return indexes.isDownloadedFromInternet || indexes.downloadFromInternetFailed
     }
 
-    private fun downloadMap() {
-        val location = app.locationProvider.lastKnownLocation
-        val latLon: LatLon = if (location != null) {
-            LatLon(location.latitude, location.longitude)
-
-        } else {
-            LatLon(24.717957, 125.344340) //Todo remove in prod
-        }
-
+    private fun downloadMap(location: Location) {
+        hasDownloadIndex = true
+        val latLon = LatLon(location.latitude, location.longitude)
         if (areIndexesReady().not()) {
-            // Ensure indexes are loaded first
             ensureIndexesLoaded()
         } else {
             // Get maps at location
@@ -704,7 +702,6 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         // Check if indexes are loaded (groupByRegion is populated)
         val downloadThread = app.downloadThread
         val indexes = downloadThread.indexes
-
 
         // If indexes haven't been loaded from internet, try to reload them
         if (!indexes.isDownloadedFromInternet && !indexes.downloadFromInternetFailed) {
@@ -777,25 +774,21 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         minZoom: Int, maxZoom: Int
     ): Boolean {
         try {
-            // Normalize URL template: {z}/{x}/{y} -> {0}/{1}/{2}
             val normalizedUrl: String =
                 TileSourceManager.TileSourceTemplate.normalizeUrl(urlTemplate)
 
 
-            // Create TileSourceTemplate
-            // Parameters: name, urlTemplate, ext, maxZoom, minZoom, tileSize, bitDensity, avgSize
             val tileSource: TileSourceManager.TileSourceTemplate =
                 TileSourceManager.TileSourceTemplate(
                     overlayName,
                     normalizedUrl,
-                    ".png",  // File extension
+                    ".png",
                     maxZoom,
                     minZoom,
-                    256,  // Tile size (256x256 pixels)
-                    16,  // Bit density
-                    18000 // Average tile size in bytes
+                    256,
+                    16,
+                    18000
                 )
-
 
             // Install tile source (creates directory and meta info file)
             val installed = app.settings.installTileSource(tileSource)
@@ -964,22 +957,34 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         Log.d("NavigationActivity", "🔇 Toasts disabled")
     }
 
-    private fun removeRoutingListener(){
+    private fun removeRoutingListener() {
         routeListener?.let {
             app?.routingHelper?.removeListener(it)
         }
     }
 
-    private fun resetDownload(){
+    private fun resetDownload() {
         val downloadThread = app?.downloadThread
         downloadThread?.resetUiActivity(this)
     }
 
-    private fun removeLocationListener(){
+    private fun removeLocationListener() {
         if (locationProvider != null) {
             locationProvider?.removeLocationListener(locationListener)
             locationProvider?.pauseAllUpdates()
         }
+    }
+
+    private fun resetAllData() {
+        stopNavigation()
+        removeOverlayLayer()
+        removeLocationListener()
+        mapViewWithLayers?.onDestroy()
+        app?.appInitializer?.removeListener(this)
+        removeRoutingListener()
+        resetDownload()
+        isIndexReady = false
+        hasDownloadIndex = false
     }
 
     override fun onPause() {
@@ -992,13 +997,8 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
 
     override fun onDestroy() {
         super.onDestroy()
-        stopNavigation()
-        removeOverlayLayer()
-        removeLocationListener()
-        mapViewWithLayers?.onDestroy()
-        app?.appInitializer?.removeListener(this)
-        removeRoutingListener()
-        resetDownload()
+        resetAllData()
+
     }
 
     override fun onStart(init: AppInitializer) {
@@ -1008,14 +1008,13 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
     override fun onFinish(init: AppInitializer) {
         super.onFinish(init)
         setupMap()
-        downloadMap()
     }
 
     private fun setupMap() {
         disableToasts()
         setMapLanguage("ja")
         setVoiceEnabled(false)
-        addShigiraResortMapOverlay()
+        addShigiraResortMapOverlay() //TODO only use for nansei
     }
 
     fun enableVoice() {
@@ -1047,21 +1046,19 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
     override fun onUpdatedIndexesList() {
         super.onUpdatedIndexesList()
         Log.d("minh", "onUpdatedIndexesList")
-        downloadMap()
-        addShigiraResortMapOverlay()
+        isIndexReady = true
     }
 
     override fun downloadInProgress() {
         super.downloadInProgress()
         val task = app?.downloadThread?.currentRunningTask?.downloadProgress
         showDownloadIndexProgress(task ?: 0f)
-        Log.d("minh", "downloadInProgress $task")
-
     }
 
     override fun downloadingError(error: String) {
         super.downloadingError(error)
         Log.d("minh", "downloadingError")
+        hasDownloadIndex = false
         hideDownloadIndexProgress()
     }
 
@@ -1069,6 +1066,7 @@ class NavigateMapActivity : OsmandActionBarActivity(), AppInitializeListener, Do
         super.downloadHasFinished()
         Log.d("minh", "downloadHasFinished")
         hideDownloadIndexProgress()
+        addShigiraResortMapOverlay()
         setMapLanguage("ja")
         app.downloadThread.updateLoadedFiles()
         refreshUIAfterDownload()
