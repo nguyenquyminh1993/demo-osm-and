@@ -72,6 +72,20 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                     )
 
                     finish = latLon
+                    
+                    // Add destination point immediately to show marker on map
+                    val targetPointsHelper = app?.targetPointsHelper
+                    if (targetPointsHelper != null) {
+                        // Clear previous destination if exists
+                        targetPointsHelper.clearPointToNavigate(false)
+                        // Add new destination point
+                        targetPointsHelper.navigateToPoint(
+                            latLon, true, -1, PointDescription(latLon.latitude, latLon.longitude)
+                        )
+                        // Refresh map to show the marker
+                        mapTileView?.refreshMap()
+                    }
+                    
                     app?.showShortToastMessage("Destination: " + latLon.latitude + ", " + latLon.longitude)
                     updateStartStopButtonState()
                     true
