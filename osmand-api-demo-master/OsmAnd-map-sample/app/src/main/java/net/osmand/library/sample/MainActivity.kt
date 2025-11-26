@@ -14,6 +14,9 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
@@ -133,6 +136,8 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private var finish: LatLon? = null
 
     private var applicationMode: ApplicationMode? = ApplicationMode.PEDESTRIAN
+
+    private var overlayLayer: MapTileLayer? = null
 
 
     public override fun onCreate(savedInstanceState: Bundle?) {
@@ -692,6 +697,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                 val firstMap = maps[0]
                 // Check if already downloaded
                 if (firstMap.isDownloaded) {
+
                     Log.d("minh", "Map already downloaded: " + firstMap.fileName)
                 } else if (isDownloading(firstMap)) {
                     Log.d(
@@ -804,8 +810,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         return overlayNameValue == app.settings.MAP_OVERLAY.get()
     }
 
-    private var overlayLayer: MapTileLayer? = null
-
     private fun addMapOverlay(
         overlayName: String, urlTemplate: String?,
         minZoom: Int, maxZoom: Int
@@ -813,7 +817,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         try {
             val normalizedUrl: String =
                 TileSourceManager.TileSourceTemplate.normalizeUrl(urlTemplate)
-
 
             val tileSource: TileSourceManager.TileSourceTemplate =
                 TileSourceManager.TileSourceTemplate(
@@ -834,11 +837,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                 return false
             }
 
-
             // Set as overlay
             app.settings.MAP_OVERLAY.set(overlayName)
             app.settings.MAP_OVERLAY_PREVIOUS.set(overlayName)
-
 
             // Apply overlay immediately (không cần MapActivity)
             // Plugin có thể access map view trực tiếp từ app.getOsmandMap().getMapView()
@@ -860,7 +861,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
             // Get overlay tile source từ settings
             val overlayName: String = settings.MAP_OVERLAY.get()
-            if (overlayName == null || overlayName.isEmpty()) {
+            if (overlayName.isEmpty()) {
                 // Remove overlay nếu setting là null
                 removeOverlayLayer()
                 return
@@ -880,17 +881,18 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
 
             // Check if layer already has this map
-            if (tileSource.equals(overlayLayer!!.map)) {
-                Log.d("NavigationActivity", "Overlay already applied")
-                return
-            }
+//            if (tileSource == overlayLayer?.map) {
+//                Log.d("NavigationActivity", "Overlay already applied")
+//                return
+//            }
 
 
             // Add layer vào map view nếu chưa có
-            if (!mapView.isLayerExists(overlayLayer!!)) {
-                mapView.addLayer(overlayLayer!!, 0f)
+            overlayLayer?.let {
+                if (!mapView.isLayerExists(it)) {
+                    mapView.addLayer(it, 0f)
+                }
             }
-
 
             // Set map cho layer
             overlayLayer?.map = tileSource
@@ -1052,7 +1054,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         disableToasts()
         setMapLanguage("ja")
 //        setVoiceEnabled(false)
-//        addShigiraResortMapOverlay() //TODO only use for nansei
+        addShigiraResortMapOverlay() //TODO only use for nansei
     }
 
     fun enableVoice() {
@@ -1104,9 +1106,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         super.downloadHasFinished()
         Log.d("minh", "downloadHasFinished")
         hideDownloadIndexProgress()
-//        addShigiraResortMapOverlay()
         setMapLanguage("ja")
         app.downloadThread.updateLoadedFiles()
+        addShigiraResortMapOverlay()
         refreshUIAfterDownload()
     }
 
