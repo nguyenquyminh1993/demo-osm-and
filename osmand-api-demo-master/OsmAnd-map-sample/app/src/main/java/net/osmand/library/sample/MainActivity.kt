@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.MenuItem
 import android.view.View
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -72,7 +73,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                     )
 
                     finish = latLon
-                    
+
                     // Add destination point immediately to show marker on map
                     val targetPointsHelper = app?.targetPointsHelper
                     if (targetPointsHelper != null) {
@@ -85,7 +86,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                         // Refresh map to show the marker
                         mapTileView?.refreshMap()
                     }
-                    
+
                     app?.showShortToastMessage("Destination: " + latLon.latitude + ", " + latLon.longitude)
                     updateStartStopButtonState()
                     true
@@ -107,7 +108,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private var modeFootButton: MaterialButton? = null
     private var progressBar: ProgressBar? = null
     private var lnProgressBar: LinearLayout? = null
-
+    private var loadingView: ProgressBar? = null
+    private var lnLoadingView: LinearLayout? = null
+    private var myLocationImv: ImageButton? = null
     private var followLocationEnabled = false
     private var hasUpdateFirstOpenMap = false
     private var navigationActive = false
@@ -149,7 +152,11 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         modeFootButton = findViewById(R.id.mode_foot_button)
         progressBar = findViewById(R.id.progress_bar)
         lnProgressBar = findViewById(R.id.ln_progress)
+        loadingView = findViewById(R.id.loading_view)
+        lnLoadingView = findViewById(R.id.ln_loading_view)
+        myLocationImv = findViewById(R.id.img_my_location)
 
+        showLoading()
         app = application as OsmandApplication
         app?.appInitializer?.addListener(this)
         setupDownloadListener()
@@ -181,6 +188,13 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                 updateFollowAndOverViewButtonState()
             }
             updateStartStopButtonState()
+        }
+
+        myLocationImv?.setOnClickListener {
+            val lastKnown = locationProvider?.lastKnownLocation
+            lastKnown?.let {
+                centerMapOnLocation(it)
+            }
         }
 
         setupVehicleModeButtons()
@@ -545,6 +559,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         if (location == null || hasUpdateFirstOpenMap) {
             return
         }
+
         val routingHelper = app?.routingHelper
         routingHelper?.setCurrentLocation(location, false)
         hasUpdateFirstOpenMap = true
@@ -747,6 +762,16 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private fun hideDownloadIndexProgress() {
         lnProgressBar?.visibility = View.GONE
         progressBar?.visibility = View.GONE
+    }
+
+    private fun showLoading() {
+        lnLoadingView?.visibility = View.VISIBLE
+        loadingView?.visibility = View.VISIBLE
+    }
+
+    private fun hideLoading() {
+        lnLoadingView?.visibility = View.GONE
+        loadingView?.visibility = View.GONE
     }
 
     private fun addShigiraResortMapOverlay() {
@@ -1020,13 +1045,14 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     override fun onFinish(init: AppInitializer) {
         super.onFinish(init)
         setupMap()
+        hideLoading()
     }
 
     private fun setupMap() {
         disableToasts()
         setMapLanguage("ja")
-        setVoiceEnabled(false)
-        addShigiraResortMapOverlay() //TODO only use for nansei
+//        setVoiceEnabled(false)
+//        addShigiraResortMapOverlay() //TODO only use for nansei
     }
 
     fun enableVoice() {
@@ -1078,7 +1104,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         super.downloadHasFinished()
         Log.d("minh", "downloadHasFinished")
         hideDownloadIndexProgress()
-        addShigiraResortMapOverlay()
+//        addShigiraResortMapOverlay()
         setMapLanguage("ja")
         app.downloadThread.updateLoadedFiles()
         refreshUIAfterDownload()
