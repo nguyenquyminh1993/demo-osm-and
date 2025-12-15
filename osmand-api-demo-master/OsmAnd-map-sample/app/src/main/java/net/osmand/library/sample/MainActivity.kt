@@ -1054,7 +1054,125 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         disableToasts()
         setMapLanguage("ja")
 //        setVoiceEnabled(false)
-        addShigiraResortMapOverlay() //TODO only use for nansei
+        //addShigiraResortMapOverlay() //TODO only use for nansei
+
+        // Set default speed for all modes at initialization
+        initializeDefaultSpeed()
+    }
+
+    /**
+     * Initialize default speed settings for all application modes
+     * This is called once when map is initialized
+     */
+    private fun initializeDefaultSpeed() {
+        try {
+            val settings = app?.settings ?: return
+
+            // Set default speed for PEDESTRIAN mode (Golf Cart)
+            setDefaultSpeedForMode(settings, ApplicationMode.PEDESTRIAN, 12.0f) // 6 m/s = 21.6 km/h
+
+            // You can also set for other modes if needed:
+            // setDefaultSpeedForMode(settings, ApplicationMode.CAR, 13.89f) // 50 km/h
+            // setDefaultSpeedForMode(settings, ApplicationMode.BICYCLE, 4.17f) // 15 km/h
+
+            Log.d("MainActivity", "✅ Default speeds initialized for all modes")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "❌ Error initializing default speeds: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Set default speed for a specific ApplicationMode
+     * This will affect routing time calculations in OsmAnd library
+     */
+    private fun setDefaultSpeedForMode(settings: OsmandSettings, mode: ApplicationMode, speedMps: Float) {
+        try {
+            val speedKmh = speedMps * 3.6f
+            Log.d("MainActivity", "🔧 Setting default speed for $mode: $speedMps m/s ($speedKmh km/h)")
+
+            // METHOD 1: Try to set DEFAULT_SPEED field
+            try {
+                val defaultSpeedField = settings.javaClass.getDeclaredField("DEFAULT_SPEED")
+                defaultSpeedField.isAccessible = true
+                val defaultSpeedSetting = defaultSpeedField.get(settings)
+
+                if (defaultSpeedSetting != null) {
+                    // Try to set speed for specific mode using setModeValue
+                    try {
+                        val setModeValueMethod = defaultSpeedSetting.javaClass.getMethod(
+                            "setModeValue",
+                            ApplicationMode::class.java,
+                            Any::class.java
+                        )
+                        setModeValueMethod.invoke(defaultSpeedSetting, mode, speedMps)
+                        Log.d("MainActivity", "✅ Set DEFAULT_SPEED for $mode successfully")
+                        return
+                    } catch (_: Exception) {
+                        Log.d("MainActivity", "⚠️ setModeValue(Any) failed, trying Float method")
+
+                        // Try with Float parameter
+                        try {
+                            val setModeValueMethodFloat = defaultSpeedSetting.javaClass.getMethod(
+                                "setModeValue",
+                                ApplicationMode::class.java,
+                                Float::class.java
+                            )
+                            setModeValueMethodFloat.invoke(defaultSpeedSetting, mode, speedMps)
+                            Log.d("MainActivity", "✅ Set DEFAULT_SPEED for $mode successfully (Float method)")
+                            return
+                        } catch (e2: Exception) {
+                            Log.d("MainActivity", "⚠️ setModeValue(Float) failed: ${e2.message}")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d("MainActivity", "⚠️ DEFAULT_SPEED field not found: ${e.message}")
+            }
+
+            // METHOD 2: Try to find and set speed-related fields
+            val allFields = settings.javaClass.declaredFields
+            for (field in allFields) {
+                if (field.name.uppercase().contains("SPEED")) {
+                    try {
+                        field.isAccessible = true
+                        val setting = field.get(settings)
+                        if (setting != null) {
+                            // Try setModeValue
+                            try {
+                                val setModeValueMethod = setting.javaClass.getMethod(
+                                    "setModeValue",
+                                    ApplicationMode::class.java,
+                                    Any::class.java
+                                )
+                                setModeValueMethod.invoke(setting, mode, speedMps)
+                                Log.d("MainActivity", "✅ Set ${field.name} for $mode successfully")
+                                return
+                            } catch (_: Exception) {
+                                // Try Float parameter
+                                try {
+                                    val setModeValueMethodFloat = setting.javaClass.getMethod(
+                                        "setModeValue",
+                                        ApplicationMode::class.java,
+                                        Float::class.java
+                                    )
+                                    setModeValueMethodFloat.invoke(setting, mode, speedMps)
+                                    Log.d("MainActivity", "✅ Set ${field.name} for $mode successfully")
+                                    return
+                                } catch (_: Exception) {
+                                    // Continue to next field
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {
+                        // Skip this field
+                    }
+                }
+            }
+
+            Log.w("MainActivity", "⚠️ Could not find suitable speed setting field for $mode")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "❌ Error setting default speed for $mode: ${e.message}", e)
+        }
     }
 
     fun enableVoice() {
@@ -1108,7 +1226,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         hideDownloadIndexProgress()
         setMapLanguage("ja")
         app.downloadThread.updateLoadedFiles()
-        addShigiraResortMapOverlay()
+        //addShigiraResortMapOverlay()
         refreshUIAfterDownload()
     }
 
