@@ -14,9 +14,6 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
@@ -1054,7 +1051,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         disableToasts()
         setMapLanguage("ja")
 //        setVoiceEnabled(false)
-        //addShigiraResortMapOverlay() //TODO only use for nansei
+        addShigiraResortMapOverlay() //TODO only use for nansei
 
         // Set default speed for all modes at initialization
         initializeDefaultSpeed()
@@ -1069,11 +1066,11 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             val settings = app?.settings ?: return
 
             // Set default speed for PEDESTRIAN mode (Golf Cart)
-            setDefaultSpeedForMode(settings, ApplicationMode.PEDESTRIAN, 12.0f) // 6 m/s = 21.6 km/h
+            setDefaultSpeedForMode(settings, ApplicationMode.PEDESTRIAN, 3.33f)
 
             // You can also set for other modes if needed:
-            // setDefaultSpeedForMode(settings, ApplicationMode.CAR, 13.89f) // 50 km/h
-            // setDefaultSpeedForMode(settings, ApplicationMode.BICYCLE, 4.17f) // 15 km/h
+            // setDefaultSpeedForMode(settings, ApplicationMode.CAR, 13.89f)
+            // setDefaultSpeedForMode(settings, ApplicationMode.BICYCLE, 4.17f)
 
             Log.d("MainActivity", "✅ Default speeds initialized for all modes")
         } catch (e: Exception) {
@@ -1085,11 +1082,12 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
      * Set default speed for a specific ApplicationMode
      * This will affect routing time calculations in OsmAnd library
      */
-    private fun setDefaultSpeedForMode(settings: OsmandSettings, mode: ApplicationMode, speedMps: Float) {
+    private fun setDefaultSpeedForMode(
+        settings: OsmandSettings,
+        mode: ApplicationMode,
+        speedMps: Float
+    ) {
         try {
-            val speedKmh = speedMps * 3.6f
-            Log.d("MainActivity", "🔧 Setting default speed for $mode: $speedMps m/s ($speedKmh km/h)")
-
             // METHOD 1: Try to set DEFAULT_SPEED field
             try {
                 val defaultSpeedField = settings.javaClass.getDeclaredField("DEFAULT_SPEED")
@@ -1118,7 +1116,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                                 Float::class.java
                             )
                             setModeValueMethodFloat.invoke(defaultSpeedSetting, mode, speedMps)
-                            Log.d("MainActivity", "✅ Set DEFAULT_SPEED for $mode successfully (Float method)")
+                            Log.d(
+                                "MainActivity",
+                                "✅ Set DEFAULT_SPEED for $mode successfully (Float method)"
+                            )
                             return
                         } catch (e2: Exception) {
                             Log.d("MainActivity", "⚠️ setModeValue(Float) failed: ${e2.message}")
@@ -1156,7 +1157,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                                         Float::class.java
                                     )
                                     setModeValueMethodFloat.invoke(setting, mode, speedMps)
-                                    Log.d("MainActivity", "✅ Set ${field.name} for $mode successfully")
+                                    Log.d(
+                                        "MainActivity",
+                                        "✅ Set ${field.name} for $mode successfully"
+                                    )
                                     return
                                 } catch (_: Exception) {
                                     // Continue to next field
@@ -1226,7 +1230,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         hideDownloadIndexProgress()
         setMapLanguage("ja")
         app.downloadThread.updateLoadedFiles()
-        //addShigiraResortMapOverlay()
+        addShigiraResortMapOverlay()
         refreshUIAfterDownload()
     }
 
