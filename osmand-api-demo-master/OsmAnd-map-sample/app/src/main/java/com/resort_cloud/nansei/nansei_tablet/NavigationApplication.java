@@ -1,4 +1,4 @@
-package net.osmand.library.sample;
+package com.resort_cloud.nansei.nansei_tablet;
 
 import net.osmand.plus.OsmandApplication;
 

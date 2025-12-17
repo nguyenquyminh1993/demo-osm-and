@@ -1,4 +1,4 @@
-package net.osmand.library.sample
+package com.resort_cloud.nansei.nansei_tablet
 
 import android.annotation.SuppressLint
 import android.graphics.PointF
@@ -12,8 +12,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.activity.viewModels
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
+import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
 import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
@@ -56,6 +58,8 @@ import kotlin.math.max
 
 class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadEvents,
     IRouteInformationListener {
+
+    private val viewModel: MainViewModel by viewModels()
     private lateinit var osmandApp: OsmandApplication
     private var mapTileView: OsmandMapTileView? = null
     private var mapViewWithLayers: MapViewWithLayers? = null
@@ -1048,6 +1052,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     }
 
     private fun setupMap() {
+        viewModel.loadFacilities()
         disableToasts()
         setMapLanguage("ja")
 //        setVoiceEnabled(false)

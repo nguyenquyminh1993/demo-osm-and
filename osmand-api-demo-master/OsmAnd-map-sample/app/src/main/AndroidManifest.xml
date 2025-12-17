@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:tools="http://schemas.android.com/tools"
-	package="net.osmand.library.sample"
 	android:versionCode="12"
 	android:versionName="1.2">
 
 	<application
-		android:name=".NavigationApplication"
+		android:name="com.resort_cloud.nansei.nansei_tablet.NavigationApplication"
 		android:allowBackup="true"
 		android:configChanges="locale"
 		android:icon="@mipmap/sample_app"
@@ -19,7 +18,7 @@
 
 		<provider
 			android:name="androidx.core.content.FileProvider"
-			android:authorities="net.osmand.library.sample.fileprovider"
+			android:authorities="net.osmand.library.nansei_tablet.fileprovider"
 			android:exported="false"
 			android:grantUriPermissions="true">
 			<meta-data
