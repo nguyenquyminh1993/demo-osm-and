@@ -1,53 +1,75 @@
 package com.resort_cloud.nansei.nansei_tablet.utils
 
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.resort_cloud.nansei.nansei_tablet.data.model.FacilityKind
 import com.resort_cloud.nansei.nansei_tablet.data.model.FacilityResponse
 import com.resort_cloud.nansei.nansei_tablet.data.repository.FacilityRepository
 import kotlinx.coroutines.launch
 
 /**
- * Example ViewModel showing how to use the FacilityRepository
- * This is just a reference implementation
+ * ViewModel for MainActivity
+ * Handles facility data loading and error management
  */
 class MainViewModel : ViewModel() {
 
     private val repository = FacilityRepository()
+    
+    // Facility kinds data
+    private val _facilityKinds = MutableLiveData<List<FacilityKind>>(emptyList())
+    val facilityKinds: LiveData<List<FacilityKind>> = _facilityKinds
 
+    // Loading state
+    private val _isLoading = MutableLiveData<Boolean>(false)
+    val isLoading: LiveData<Boolean> = _isLoading
+    
+    // Error handling - expose exception for ErrorHandler
+    private val _facilityError = MutableLiveData<Throwable?>()
+    val facilityError: LiveData<Throwable?> = _facilityError
+    
     /**
-     * Example: Fetch facilities
+     * Load facilities from API
+     * Results are exposed through LiveData
      */
     fun loadFacilities() {
+        if (_isLoading.value == true) {
+            return
+        }
+
         viewModelScope.launch {
+            _isLoading.postValue(true)
+            _facilityError.postValue(null)
             val result = repository.getFacilities()
             result.onSuccess { response ->
                 handleSuccess(response)
             }.onFailure { exception ->
                 handleError(exception)
             }
+            _isLoading.postValue(false)
         }
     }
-
+    
+    /**
+     * Handle successful API response
+     */
     private fun handleSuccess(response: FacilityResponse) {
-        // Handle successful response
-        println("Success: ${response.success}")
-        println("Timestamp: ${response.timestamp}")
-
-        // Access facility kinds
-        response.payload.facilityKinds.forEach { facilityKind ->
-            println("Facility Kind: ${facilityKind.name} (${facilityKind.facilityKind})")
-
-            // Access individual facilities
-            facilityKind.facilities.forEach { facility ->
-                println("  - ${facility.listData.name}")
-                println("    Location: ${facility.markerData.latitude}, ${facility.markerData.longitude}")
-            }
-        }
+        _facilityKinds.postValue(response.payload.facilityKinds)
     }
-
+    
+    /**
+     * Handle API error
+     * Error is exposed through LiveData for UI to handle
+     */
     private fun handleError(exception: Throwable) {
-        // Handle error
-        println("Error: ${exception.message}")
-        exception.printStackTrace()
+        _facilityError.postValue(exception)
+    }
+    
+    /**
+     * Clear error state
+     */
+    fun clearError() {
+        _facilityError.postValue(null)
     }
 }

@@ -26,6 +26,14 @@
 	<string name="clear">Clear</string>
 	<string name="cancel">Cancel</string>
 	<string name="destination_place">Destination Place</string>
+	<string name="error_title">Error</string>
+	<string name="ok">OK</string>
+	<string name="unexpected_message">システムエラーが発生しました。\n恐れ入りますが、しばらく待ってから再度お試しください。</string>
+	<string name="timeout_message">タイムアウトエラーが発生しました。\n恐れ入りますが、しばらく待ってから再度お試しください。</string>
+	<string name="connection_error_message">通信エラーが発生しました。\n恐れ入りますが、しばらく待ってから再度お試しください。</string>
+
+
+
 
 
 </resources>

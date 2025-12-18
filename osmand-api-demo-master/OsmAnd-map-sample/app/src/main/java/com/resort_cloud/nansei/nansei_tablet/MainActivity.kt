@@ -15,9 +15,15 @@ import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.Observer
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.resort_cloud.nansei.nansei_tablet.dialog.SearchDestinationDialog
+import com.resort_cloud.nansei.nansei_tablet.utils.ErrorHandler
 import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
@@ -57,9 +63,6 @@ import java.io.File
 import java.io.IOException
 import java.util.Locale
 import kotlin.math.max
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadEvents,
     IRouteInformationListener {
@@ -150,7 +153,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private var destinationTextView: TextView? = null
     private var btnClearDestination: ImageView? = null
     private var searchBarDestination: MaterialCardView? = null
-    private var facilityKinds: List<com.resort_cloud.nansei.nansei_tablet.data.model.FacilityKind> = emptyList()
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,7 +174,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         loadingView = findViewById(R.id.loading_view)
         lnLoadingView = findViewById(R.id.ln_loading_view)
         myLocationImv = findViewById(R.id.img_my_location)
-        
+
         // Search destination views
         searchBarDestination = findViewById(R.id.search_bar_destination)
         destinationTextView = findViewById(R.id.tv_destination_text)
@@ -220,7 +222,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         }
 
         setupVehicleModeButtons()
-        
+
         // Setup search destination
         setupSearchDestination()
 
@@ -1078,9 +1080,8 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         // Set default speed for all modes at initialization
         initializeDefaultSpeed()
-        
+
         // Preload facilities để sẵn sàng cho search
-        loadFacilitiesFromRepository()
     }
 
     /**
@@ -1277,54 +1278,63 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
      * Tương tự Flutter: search bar để chọn destination
      */
     private fun setupSearchDestination() {
+        // Setup observers for ViewModel
+        setupFacilityObservers()
+
         // Load facilities từ API
-        loadFacilities()
-        
+        viewModel.loadFacilities()
+
         // Setup click listener cho search bar
         searchBarDestination?.setOnClickListener {
             openSearchDestinationDialog()
         }
-        
+
         // Setup clear button
         btnClearDestination?.setOnClickListener {
             clearDestination()
         }
-        
+
         // Update UI
         updateDestinationTextUI()
     }
-    
+
     /**
-     * Load facilities từ API
+     * Setup observers for facility data and errors from ViewModel
      */
-    private fun loadFacilities() {
-        viewModel.loadFacilities()
-        
-        // Observe facilities từ ViewModel (cần thêm LiveData vào ViewModel)
-        // Tạm thời dùng cách khác: load trực tiếp trong dialog
+    private fun setupFacilityObservers() {
+        // Observe facility kinds
+        viewModel.facilityKinds.observe(this) { facilityKinds ->
+            Log.d("MainActivity", "Facility kinds updated: ${facilityKinds.size}")
+        }
+
+        // Observe errors
+        viewModel.facilityError.observe(this) { exception ->
+            exception?.let {
+                ErrorHandler.handleError(this@MainActivity, it) {
+                    // Clear error after dialog dismissed
+                    viewModel.clearError()
+                }
+            }
+        }
     }
-    
+
     /**
      * Mở dialog search destination
      */
     private fun openSearchDestinationDialog() {
-        // Load facilities nếu chưa có, sau đó mở dialog
-        if (facilityKinds.isEmpty()) {
-            loadFacilitiesFromRepository {
-                // Sau khi load xong, mở dialog
-                showSearchDialog()
-            }
-        } else {
-            // Đã có data, mở dialog ngay
-            showSearchDialog()
-        }
+        val currentFacilityKinds = viewModel.facilityKinds.value ?: emptyList()
+
+        if (currentFacilityKinds.isEmpty())
+            return
+        showSearchDialog(currentFacilityKinds)
+
     }
-    
+
     /**
      * Hiển thị search dialog
      */
-    private fun showSearchDialog() {
-        val dialog = com.resort_cloud.nansei.nansei_tablet.dialog.SearchDestinationDialog.newInstance(
+    private fun showSearchDialog(facilityKinds: List<com.resort_cloud.nansei.nansei_tablet.data.model.FacilityKind>) {
+        val dialog = SearchDestinationDialog.newInstance(
             facilityKinds = facilityKinds,
             currentDestinationText = destinationText,
             onFacilitySelected = { facility ->
@@ -1333,31 +1343,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         )
         dialog.show(supportFragmentManager, "SearchDestinationDialog")
     }
-    
-    /**
-     * Load facilities từ repository (async)
-     * @param onComplete Callback khi load xong
-     */
-    private fun loadFacilitiesFromRepository(onComplete: (() -> Unit)? = null) {
-        CoroutineScope(Dispatchers.Main).launch {
-            try {
-                val repository = com.resort_cloud.nansei.nansei_tablet.data.repository.FacilityRepository()
-                val result = repository.getFacilities()
-                result.onSuccess { response ->
-                    facilityKinds = response.payload.facilityKinds
-                    Log.d("MainActivity", "Loaded ${facilityKinds.size} facility kinds")
-                    onComplete?.invoke()
-                }.onFailure { exception ->
-                    Log.e("MainActivity", "Error loading facilities: ${exception.message}", exception)
-                    app?.showShortToastMessage("Error loading facilities: ${exception.message}")
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error loading facilities", e)
-                app?.showShortToastMessage("Error loading facilities")
-            }
-        }
-    }
-    
+
     /**
      * Xử lý khi chọn destination facility
      */
@@ -1365,11 +1351,11 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         // Set destination text
         destinationText = facility.name
         updateDestinationTextUI()
-        
+
         // Set destination location
         val destinationLatLon = LatLon(facility.latitude, facility.longitude)
         finish = destinationLatLon
-        
+
         // Add destination point to map
         val targetPointsHelper = app?.targetPointsHelper
         if (targetPointsHelper != null) {
@@ -1382,7 +1368,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             )
             mapTileView?.refreshMap()
         }
-        
+
         // Show description dialog nếu có
         if (facility.description.isNotEmpty()) {
             android.app.AlertDialog.Builder(this)
@@ -1391,34 +1377,39 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
         }
-        
+
         app?.showShortToastMessage("Destination: ${facility.name}")
         updateStartStopButtonState()
     }
-    
+
     /**
      * Clear destination
      */
     private fun clearDestination() {
         destinationText = ""
         finish = null
-        
+
         // Clear destination point from map
         val targetPointsHelper = app?.targetPointsHelper
         targetPointsHelper?.clearPointToNavigate(false)
         mapTileView?.refreshMap()
-        
+
         updateDestinationTextUI()
         updateStartStopButtonState()
     }
-    
+
     /**
      * Update destination text UI
      */
     private fun updateDestinationTextUI() {
         if (destinationText.isEmpty()) {
             destinationTextView?.text = getString(R.string.destination_place)
-            destinationTextView?.setTextColor(ContextCompat.getColor(this, android.R.color.darker_gray))
+            destinationTextView?.setTextColor(
+                ContextCompat.getColor(
+                    this,
+                    android.R.color.darker_gray
+                )
+            )
             btnClearDestination?.visibility = View.GONE
         } else {
             destinationTextView?.text = destinationText
