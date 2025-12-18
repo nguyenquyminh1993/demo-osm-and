@@ -1,8 +1,9 @@
 package com.resort_cloud.nansei.nansei_tablet.utils
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.resort_cloud.nansei.nansei_tablet.data.model.FacilityKind
 import com.resort_cloud.nansei.nansei_tablet.data.model.FacilityResponse
@@ -13,9 +14,9 @@ import kotlinx.coroutines.launch
  * ViewModel for MainActivity
  * Handles facility data loading and error management
  */
-class MainViewModel : ViewModel() {
+class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = FacilityRepository()
+    private val repository = FacilityRepository(application.applicationContext)
     
     // Facility kinds data
     private val _facilityKinds = MutableLiveData<List<FacilityKind>>(emptyList())

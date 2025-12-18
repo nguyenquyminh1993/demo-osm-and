@@ -6,10 +6,7 @@
     android:background="?android:attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
-    android:paddingStart="12dp"
-    android:paddingTop="16dp"
-    android:paddingEnd="12dp"
-    android:paddingBottom="16dp">
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/tv_facility_name"
@@ -24,8 +21,8 @@
     <View
         android:id="@+id/divider"
         android:layout_width="match_parent"
-        android:layout_height="2dp"
-        android:layout_marginTop="16dp"
+        android:layout_height="1dp"
+        android:layout_marginTop="12dp"
         android:background="#E0E0E0" />
 
 </LinearLayout>
