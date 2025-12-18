@@ -21,6 +21,11 @@
 	<string name="follow_camera">Follow</string>
 	<string name="overview">Overview</string>
 	<string name="please_wait_while_we_download_resource">Please wait while we download resource</string>
+	<string name="search">Search</string>
+	<string name="filter">Filter</string>
+	<string name="clear">Clear</string>
+	<string name="cancel">Cancel</string>
+	<string name="destination_place">Destination Place</string>
 
 
 </resources>
