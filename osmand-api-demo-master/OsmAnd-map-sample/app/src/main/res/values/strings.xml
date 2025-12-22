@@ -31,7 +31,8 @@
 	<string name="unexpected_message">システムエラーが発生しました。\n恐れ入りますが、しばらく待ってから再度お試しください。</string>
 	<string name="timeout_message">タイムアウトエラーが発生しました。\n恐れ入りますが、しばらく待ってから再度お試しください。</string>
 	<string name="connection_error_message">通信エラーが発生しました。\n恐れ入りますが、しばらく待ってから再度お試しください。</string>
-
+	<string name="map_error_out_of_bounds">地図の範囲外にいます。\n地図の範囲内に戻ってください。</string>
+	<string name="map_error_location_disabled">位置情報が無効です。\n位置情報を有効にしてください。</string>
 
 
 

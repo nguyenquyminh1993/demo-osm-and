@@ -19,7 +19,9 @@ import androidx.lifecycle.Observer
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.resort_cloud.nansei.nansei_tablet.dialog.SearchDestinationDialog
+import com.resort_cloud.nansei.nansei_tablet.utils.AlertManager
 import com.resort_cloud.nansei.nansei_tablet.utils.ErrorHandler
+import com.resort_cloud.nansei.nansei_tablet.utils.MapBoundsConstants
 import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -137,6 +139,8 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         runOnUiThread {
             updateLocationWhenInit(location)
             downloadMapIfNeed(location)
+            // Check map bounds and show alerts
+            checkMapBoundsAndShowAlert(location)
         }
     }
 
@@ -153,6 +157,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private var destinationTextView: TextView? = null
     private var btnClearDestination: ImageView? = null
     private var searchBarDestination: MaterialCardView? = null
+    
+    // Map bounds alert
+    private var showMapOutCaution: Boolean = false
+    private var lastCheckedLocation: Location? = null
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1054,12 +1062,15 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         mapTileView?.setOnLongClickListener(null)
         app?.routingHelper?.removeRouteDataListener(routingDataUpdateListener)
         removeLocationListener()
+        // Stop beep when activity pauses
+        AlertManager.stopBeepSound()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         resetAllData()
-
+        // Stop beep when activity destroys
+        AlertManager.stopBeepSound()
     }
 
     override fun onStart(init: AppInitializer) {
@@ -1417,6 +1428,45 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             btnClearDestination?.visibility = View.VISIBLE
         }
     }
-
+    
+    /**
+     * Check map bounds and show alert if needed
+     * Similar to Flutter _setBlShowMapOutCaution() and _showDialogIfNgLocationStatus()
+     */
+    private fun checkMapBoundsAndShowAlert(location: Location?) {
+        if (location == null) {
+            // No location: show dialog if not already shown
+            if (lastCheckedLocation == null) {
+                AlertManager.showLocationDisabledDialog(this)
+            }
+            AlertManager.manageBeepSound(false)
+            showMapOutCaution = false
+            return
+        }
+        
+        val lat = location.latitude
+        val lng = location.longitude
+        
+        // Check if out of main map bounds (show dialog)
+        if (MapBoundsConstants.isLocationOutOfMapBounds(lat, lng)) {
+            // Show dialog only once per location change
+            if (lastCheckedLocation == null || 
+                lastCheckedLocation!!.latitude != lat || 
+                lastCheckedLocation!!.longitude != lng) {
+                AlertManager.showMapOutOfBoundsDialog(this)
+            }
+        }
+        
+        // Check if out of caution bounds (show text warning + beep)
+        val shouldShowCaution = MapBoundsConstants.isLocationOutOfCautionBounds(lat, lng)
+        
+        // Update caution state and manage beep
+        if (shouldShowCaution != showMapOutCaution) {
+            showMapOutCaution = shouldShowCaution
+            AlertManager.manageBeepSound(shouldShowCaution)
+        }
+        
+        lastCheckedLocation = location
+    }
 
 }
