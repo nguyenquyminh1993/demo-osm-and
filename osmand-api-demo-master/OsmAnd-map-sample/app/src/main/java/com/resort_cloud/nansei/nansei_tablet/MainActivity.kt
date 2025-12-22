@@ -82,6 +82,12 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                         mapTileView?.mapRenderer, tileBox!!, point.x, point.y
                     )
 
+                    // Check if click is outside map bounds - don't process if outside
+                    if (MapBoundsConstants.isLocationOutOfMapBounds(latLon.latitude, latLon.longitude)) {
+                        // Click is outside bounds - don't process
+                        return@OnLongClickListener false
+                    }
+
                     finish = latLon
 
                     // Add destination point immediately to show marker on map
