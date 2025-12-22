@@ -97,7 +97,7 @@ class SearchDestinationDialog : DialogFragment() {
         rvFacilities.adapter = adapter
 
         // Load initial data
-        updateFacilityList("")
+        updateFacilityList(etSearch.text.toString())
 
         // Setup search text watcher với debounce (300ms như Flutter)
         etSearch.addTextChangedListener(object : TextWatcher {

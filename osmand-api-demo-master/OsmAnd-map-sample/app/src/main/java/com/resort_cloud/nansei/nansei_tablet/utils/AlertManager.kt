@@ -25,19 +25,35 @@ object AlertManager {
     private var beepJob: Job? = null
     private var toneGenerator: ToneGenerator? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var currentDialog: AlertDialog? = null
     
     /**
      * Show dialog alert when user is out of map bounds
      * Similar to Flutter ComLargeBtnDialog.showStyle()
      */
     fun showMapOutOfBoundsDialog(context: Context) {
-        AlertDialog.Builder(context)
+        // Close existing dialog if any
+        currentDialog?.dismiss()
+        
+        currentDialog = AlertDialog.Builder(context)
             .setMessage(context.getString(R.string.map_error_out_of_bounds))
             .setPositiveButton(context.getString(R.string.ok)) { dialog, _ ->
                 dialog.dismiss()
             }
             .setCancelable(false)
-            .show()
+            .setOnDismissListener {
+                currentDialog = null
+            }
+            .create()
+        currentDialog?.show()
+    }
+    
+    /**
+     * Close map bounds dialog if location is back in bounds
+     */
+    fun closeMapOutOfBoundsDialog() {
+        currentDialog?.dismiss()
+        currentDialog = null
     }
     
     /**

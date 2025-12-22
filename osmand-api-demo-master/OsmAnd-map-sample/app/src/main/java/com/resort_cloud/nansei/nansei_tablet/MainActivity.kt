@@ -15,7 +15,6 @@ import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.lifecycle.Observer
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.resort_cloud.nansei.nansei_tablet.dialog.SearchDestinationDialog
@@ -23,9 +22,6 @@ import com.resort_cloud.nansei.nansei_tablet.utils.AlertManager
 import com.resort_cloud.nansei.nansei_tablet.utils.ErrorHandler
 import com.resort_cloud.nansei.nansei_tablet.utils.MapBoundsConstants
 import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
@@ -113,7 +109,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private var nextTurnDistanceText: TextView? = null
     private val nextTurnText: TextView? = null
     private var remainingDistanceText: TextView? = null
-    private val followLocationButton: MaterialButton? = null
     private var followNavigationCameraButton: Button? = null
     private var overViewNavigationCameraButton: Button? = null
     private var startStopNavigationButton: Button? = null
@@ -157,14 +152,14 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private var destinationTextView: TextView? = null
     private var btnClearDestination: ImageView? = null
     private var searchBarDestination: MaterialCardView? = null
-    
+
     // Map bounds alert
     private var showMapOutCaution: Boolean = false
     private var lastCheckedLocation: Location? = null
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.navigation_map_activity)
+        setContentView(R.layout.main_activity)
         mapViewWithLayers = findViewById(R.id.map_view_with_layers)
         routeInfoContainer = findViewById(R.id.route_info_container)
         nextTurnIcon = findViewById(R.id.next_turn_icon)
@@ -172,7 +167,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         //        nextTurnText = findViewById(R.id.next_turn_text);
         remainingDistanceText = findViewById(R.id.remaining_distance_text)
         followNavigationCameraButton = findViewById(R.id.follow_camera)
-        overViewNavigationCameraButton = findViewById(R.id.btn_over_view)
         startStopNavigationButton = findViewById(R.id.start_stop_navigation_button)
         modeCarButton = findViewById(R.id.mode_car_button)
         modeBikeButton = findViewById(R.id.mode_bike_button)
@@ -197,10 +191,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         ensureIndexesLoaded()
         locationProvider = app?.locationProvider
 
-        //        if (followLocationButton != null) {
-//            followLocationButton.setOnClickListener(v -> toggleFollowLocation());
-//            updateFollowLocationButtonState();
-//        }
         if (followNavigationCameraButton != null) {
             followNavigationCameraButton?.setOnClickListener { followNavigationCamera() }
             followNavigationCameraButton?.visibility = View.GONE
@@ -236,18 +226,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         mapTileView = app?.osmandMap?.mapView
         mapTileView?.setupRenderingView()
-
-//        val toolbar = findViewById<Toolbar>(R.id.toolbar)
-//        toolbar.title = "Navigate map"
-//        toolbar.setNavigationIcon(AndroidUtils.getNavigationIconResId(this))
-//        toolbar.setNavigationOnClickListener { onBackPressed() }
-
-        //		CompoundButton openglSwitch = findViewById(R.id.opengl_switch);
-//		openglSwitch.setChecked(app?.getSettings().USE_OPENGL_RENDER.get());
-//		openglSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-//			app?.getSettings().USE_OPENGL_RENDER.set(isChecked);
-//			RestartActivity.doRestart(this);
-//		});
 
         // Initialize map with user location if available
         if (locationProvider != null) {
@@ -392,8 +370,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         app?.showShortToastMessage("Navigation started from current location to " + finish!!.latitude + ", " + finish!!.longitude)
 
         navigationActive = true
-        //        followLocationEnabled = true;
-        updateFollowLocationButtonState()
         updateStartStopButtonState()
 
         refreshRouteInfoView()
@@ -508,26 +484,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         return R.drawable.ic_turn_straight
     }
 
-    private fun toggleFollowLocation() {
-        followLocationEnabled = !followLocationEnabled
-        updateFollowLocationButtonState()
-        if (followLocationEnabled && locationProvider != null) {
-            val lastKnown = locationProvider!!.lastKnownLocation
-            if (lastKnown != null) {
-                centerMapOnLocation(lastKnown)
-            }
-        }
-    }
-
-    private fun updateFollowLocationButtonState() {
-        if (followLocationButton == null) {
-            return
-        }
-        followLocationButton.setText(
-            if (followLocationEnabled) R.string.follow_location_disable
-            else R.string.follow_location_enable
-        )
-    }
 
     private fun overviewCamera() {
         if (!navigationActive) {
@@ -1281,7 +1237,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     override fun routeWasFinished() {
         stopNavigation()
         updateFollowAndOverViewButtonState()
-        updateFollowLocationButtonState()
     }
 
     /**
@@ -1359,6 +1314,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
      * Xử lý khi chọn destination facility
      */
     private fun onDestinationSelected(facility: com.resort_cloud.nansei.nansei_tablet.utils.FacilityItem.FacilityData) {
+        stopNavigation()
         // Set destination text
         destinationText = facility.name
         updateDestinationTextUI()
@@ -1366,31 +1322,24 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         // Set destination location
         val destinationLatLon = LatLon(facility.latitude, facility.longitude)
         finish = destinationLatLon
-
-        // Add destination point to map
+        // Add destination point immediately to show marker on map
         val targetPointsHelper = app?.targetPointsHelper
         if (targetPointsHelper != null) {
+            // Clear previous destination if exists
             targetPointsHelper.clearPointToNavigate(false)
+            // Add new destination point
             targetPointsHelper.navigateToPoint(
                 destinationLatLon,
                 true,
                 -1,
                 PointDescription(destinationLatLon.latitude, destinationLatLon.longitude)
             )
+            // Refresh map to show the marker
             mapTileView?.refreshMap()
         }
 
-        // Show description dialog nếu có
-        if (facility.description.isNotEmpty()) {
-            android.app.AlertDialog.Builder(this)
-                .setTitle(facility.name)
-                .setMessage(facility.description)
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
-        }
-
-        app?.showShortToastMessage("Destination: ${facility.name}")
         updateStartStopButtonState()
+        updateFollowAndOverViewButtonState()
     }
 
     /**
@@ -1398,15 +1347,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
      */
     private fun clearDestination() {
         destinationText = ""
-        finish = null
-
-        // Clear destination point from map
-        val targetPointsHelper = app?.targetPointsHelper
-        targetPointsHelper?.clearPointToNavigate(false)
-        mapTileView?.refreshMap()
-
         updateDestinationTextUI()
-        updateStartStopButtonState()
+        stopNavigation()
+        updateFollowAndOverViewButtonState()
     }
 
     /**
@@ -1428,7 +1371,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             btnClearDestination?.visibility = View.VISIBLE
         }
     }
-    
+
     /**
      * Check map bounds and show alert if needed
      * Similar to Flutter _setBlShowMapOutCaution() and _showDialogIfNgLocationStatus()
@@ -1443,29 +1386,34 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             showMapOutCaution = false
             return
         }
-        
+
         val lat = location.latitude
         val lng = location.longitude
-        
+
         // Check if out of main map bounds (show dialog)
-        if (MapBoundsConstants.isLocationOutOfMapBounds(lat, lng)) {
+        val isOutOfMapBounds = MapBoundsConstants.isLocationOutOfMapBounds(lat, lng)
+        if (isOutOfMapBounds) {
             // Show dialog only once per location change
-            if (lastCheckedLocation == null || 
-                lastCheckedLocation!!.latitude != lat || 
-                lastCheckedLocation!!.longitude != lng) {
+            if (lastCheckedLocation == null ||
+                lastCheckedLocation!!.latitude != lat ||
+                lastCheckedLocation!!.longitude != lng
+            ) {
                 AlertManager.showMapOutOfBoundsDialog(this)
             }
+        } else {
+            // Location is back in bounds: close dialog
+            AlertManager.closeMapOutOfBoundsDialog()
         }
-        
+
         // Check if out of caution bounds (show text warning + beep)
         val shouldShowCaution = MapBoundsConstants.isLocationOutOfCautionBounds(lat, lng)
-        
+
         // Update caution state and manage beep
         if (shouldShowCaution != showMapOutCaution) {
             showMapOutCaution = shouldShowCaution
             AlertManager.manageBeepSound(shouldShowCaution)
         }
-        
+
         lastCheckedLocation = location
     }
 
