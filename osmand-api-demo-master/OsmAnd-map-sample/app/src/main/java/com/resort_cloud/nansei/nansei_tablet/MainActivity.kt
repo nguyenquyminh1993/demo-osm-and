@@ -15,7 +15,6 @@ import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsCompat
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.resort_cloud.nansei.nansei_tablet.dialog.SearchDestinationDialog
 import com.resort_cloud.nansei.nansei_tablet.utils.AlertManager
@@ -122,9 +121,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private var followNavigationCameraButton: Button? = null
     private var overViewNavigationCameraButton: Button? = null
     private var startStopNavigationButton: Button? = null
-    private var modeCarButton: MaterialButton? = null
-    private var modeBikeButton: MaterialButton? = null
-    private var modeFootButton: MaterialButton? = null
     private var progressBar: ProgressBar? = null
     private var lnProgressBar: LinearLayout? = null
     private var loadingView: ProgressBar? = null
@@ -179,9 +175,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         remainingDistanceText = findViewById(R.id.remaining_distance_text)
         followNavigationCameraButton = findViewById(R.id.follow_camera)
         startStopNavigationButton = findViewById(R.id.start_stop_navigation_button)
-        modeCarButton = findViewById(R.id.mode_car_button)
-        modeBikeButton = findViewById(R.id.mode_bike_button)
-        modeFootButton = findViewById(R.id.mode_foot_button)
         progressBar = findViewById(R.id.progress_bar)
         lnProgressBar = findViewById(R.id.ln_progress)
         loadingView = findViewById(R.id.loading_view)
@@ -597,50 +590,16 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     }
 
     private fun setupVehicleModeButtons() {
-        if (modeCarButton == null || modeBikeButton == null || modeFootButton == null) {
-            return
-        }
-
-        updateVehicleModeSelection(applicationMode)
-
-        modeCarButton?.setOnClickListener {
-            onVehicleModeSelected(
-                ApplicationMode.CAR
-            )
-        }
-        modeBikeButton?.setOnClickListener {
-            onVehicleModeSelected(
-                ApplicationMode.BICYCLE
-            )
-        }
-        modeFootButton?.setOnClickListener {
-            onVehicleModeSelected(
-                ApplicationMode.PEDESTRIAN
-            )
-        }
-    }
-
-    private fun onVehicleModeSelected(mode: ApplicationMode) {
         val settings = app?.settings
         val routingHelper = app?.routingHelper
 
-        settings?.applicationMode = mode
+        settings?.applicationMode = ApplicationMode.PEDESTRIAN
         if (routingHelper != null) {
-            routingHelper.appMode = mode
+            routingHelper.appMode = ApplicationMode.PEDESTRIAN
             if (routingHelper.isRouteCalculated) {
                 routingHelper.recalculateRouteDueToSettingsChange(true)
             }
         }
-        updateVehicleModeSelection(mode)
-    }
-
-    private fun updateVehicleModeSelection(mode: ApplicationMode?) {
-        if (modeCarButton == null || modeBikeButton == null || modeFootButton == null || mode == null) {
-            return
-        }
-        modeCarButton?.isChecked = mode === ApplicationMode.CAR
-        modeBikeButton?.isChecked = mode === ApplicationMode.BICYCLE
-        modeFootButton?.isChecked = mode === ApplicationMode.PEDESTRIAN
     }
 
     private fun downloadIndexItem(item: IndexItem) {

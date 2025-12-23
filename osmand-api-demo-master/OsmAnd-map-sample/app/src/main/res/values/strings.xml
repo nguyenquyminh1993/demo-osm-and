@@ -1,5 +1,5 @@
 <resources>
-	<string name="app_name">OsmAnd-map-sample</string>
+	<string name="app_name">Shigira Map</string>
 
 	<string name="route_info_distance_placeholder">Chưa có dữ liệu về chặng kế tiếp</string>
 	<string name="route_info_no_turn">Chưa có hướng dẫn rẽ</string>
