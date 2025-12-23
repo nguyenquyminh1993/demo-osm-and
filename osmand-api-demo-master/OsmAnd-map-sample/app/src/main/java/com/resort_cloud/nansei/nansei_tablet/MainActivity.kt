@@ -20,8 +20,8 @@ import com.google.android.material.card.MaterialCardView
 import com.resort_cloud.nansei.nansei_tablet.dialog.SearchDestinationDialog
 import com.resort_cloud.nansei.nansei_tablet.utils.AlertManager
 import com.resort_cloud.nansei.nansei_tablet.utils.ErrorHandler
-import com.resort_cloud.nansei.nansei_tablet.utils.MapBoundsConstants
 import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
+import com.resort_cloud.nansei.nansei_tablet.utils.MapBoundsConstants
 import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
@@ -83,7 +83,11 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                     )
 
                     // Check if click is outside map bounds - don't process if outside
-                    if (MapBoundsConstants.isLocationOutOfMapBounds(latLon.latitude, latLon.longitude)) {
+                    if (MapBoundsConstants.isLocationOutOfMapBounds(
+                            latLon.latitude,
+                            latLon.longitude
+                        )
+                    ) {
                         // Click is outside bounds - don't process
                         return@OnLongClickListener false
                     }
@@ -125,6 +129,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private var lnProgressBar: LinearLayout? = null
     private var loadingView: ProgressBar? = null
     private var lnLoadingView: LinearLayout? = null
+    private var lnOutOfArea: LinearLayout? = null
     private var myLocationImv: ImageButton? = null
     private var followLocationEnabled = false
     private var hasUpdateFirstOpenMap = false
@@ -181,6 +186,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         lnProgressBar = findViewById(R.id.ln_progress)
         loadingView = findViewById(R.id.loading_view)
         lnLoadingView = findViewById(R.id.ln_loading_view)
+        lnOutOfArea = findViewById(R.id.ln_out_of_area)
         myLocationImv = findViewById(R.id.img_my_location)
 
         // Search destination views
@@ -353,7 +359,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         val settings = app?.settings ?: return
         val routingHelper = app?.routingHelper ?: return
-        settings.setApplicationMode(applicationMode)
+        settings.applicationMode = applicationMode
         val targetPointsHelper = app?.targetPointsHelper ?: return
 
         targetPointsHelper.setStartPoint(
@@ -446,7 +452,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                     iconResId = getTurnIconResource(turnTypeStr)
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Fallback to instruction text parsing
             if (instruction != null) {
                 iconResId = getTurnIconFromInstruction(instruction)
@@ -478,13 +484,13 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             return R.drawable.ic_turn_straight
         }
         val lower = instruction.lowercase(Locale.getDefault())
-        if (lower.contains("left") || lower.contains("rẽ trái") || lower.contains("quẹo trái")) {
+        if (lower.contains("left")) {
             return R.drawable.ic_turn_left
-        } else if (lower.contains("right") || lower.contains("rẽ phải") || lower.contains("quẹo phải")) {
+        } else if (lower.contains("right")) {
             return R.drawable.ic_turn_right
-        } else if (lower.contains("straight") || lower.contains("thẳng") || lower.contains("tiếp tục")) {
+        } else if (lower.contains("straight")) {
             return R.drawable.ic_turn_straight
-        } else if (lower.contains("u-turn") || lower.contains("quay đầu")) {
+        } else if (lower.contains("u-turn")) {
             return R.drawable.ic_turn_uturn
         }
         return R.drawable.ic_turn_straight
@@ -597,17 +603,17 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         updateVehicleModeSelection(applicationMode)
 
-        modeCarButton?.setOnClickListener { v: View? ->
+        modeCarButton?.setOnClickListener {
             onVehicleModeSelected(
                 ApplicationMode.CAR
             )
         }
-        modeBikeButton?.setOnClickListener { v: View? ->
+        modeBikeButton?.setOnClickListener {
             onVehicleModeSelected(
                 ApplicationMode.BICYCLE
             )
         }
-        modeFootButton?.setOnClickListener { v: View? ->
+        modeFootButton?.setOnClickListener {
             onVehicleModeSelected(
                 ApplicationMode.PEDESTRIAN
             )
@@ -618,7 +624,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         val settings = app?.settings
         val routingHelper = app?.routingHelper
 
-        settings?.setApplicationMode(mode)
+        settings?.applicationMode = mode
         if (routingHelper != null) {
             routingHelper.appMode = mode
             if (routingHelper.isRouteCalculated) {
@@ -1025,6 +1031,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         app?.routingHelper?.removeRouteDataListener(routingDataUpdateListener)
         removeLocationListener()
         // Stop beep when activity pauses
+        showMapOutCaution = false
         AlertManager.stopBeepSound()
     }
 
@@ -1048,7 +1055,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private fun setupMap() {
         disableToasts()
         setMapLanguage("ja")
-//        setVoiceEnabled(false)
         addShigiraResortMapOverlay() //TODO only use for nansei
 
         // Set default speed for all modes at initialization
@@ -1179,20 +1185,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         }
     }
 
-    fun enableVoice() {
-        setVoiceEnabled(true)
-    }
-
-    fun setVoiceEnabled(enabled: Boolean) {
-        val settings = app.settings
-        val appMode = app.routingHelper.appMode
-
-        settings.VOICE_MUTE.setModeValue(appMode, !enabled)
-        app.routingHelper.voiceRouter.setMuteForMode(appMode, !enabled)
-
-        Log.d("NavigationActivity", if (enabled) "✅ Voice enabled" else "🔇 Voice disabled")
-    }
-
     private fun setupDownloadListener() {
         val downloadThread = app?.downloadThread
         downloadThread?.setUiActivity(this) // Set activity làm listener
@@ -1320,6 +1312,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
      * Xử lý khi chọn destination facility
      */
     private fun onDestinationSelected(facility: com.resort_cloud.nansei.nansei_tablet.utils.FacilityItem.FacilityData) {
+
         stopNavigation()
         // Set destination text
         destinationText = facility.name
@@ -1327,6 +1320,11 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         // Set destination location
         val destinationLatLon = LatLon(facility.latitude, facility.longitude)
+        if (showMapOutCaution) {
+            AlertManager.showMapOutOfBoundsDialog(this)
+            return
+        }
+
         finish = destinationLatLon
         // Add destination point immediately to show marker on map
         val targetPointsHelper = app?.targetPointsHelper
@@ -1399,16 +1397,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         // Check if out of main map bounds (show dialog)
         val isOutOfMapBounds = MapBoundsConstants.isLocationOutOfMapBounds(lat, lng)
         if (isOutOfMapBounds) {
-            // Show dialog only once per location change
-            if (lastCheckedLocation == null ||
-                lastCheckedLocation!!.latitude != lat ||
-                lastCheckedLocation!!.longitude != lng
-            ) {
-                AlertManager.showMapOutOfBoundsDialog(this)
-            }
+            showOutOfAreaView()
         } else {
-            // Location is back in bounds: close dialog
-            AlertManager.closeMapOutOfBoundsDialog()
+            hideOutOfAreaView()
         }
 
         // Check if out of caution bounds (show text warning + beep)
@@ -1423,4 +1414,11 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         lastCheckedLocation = location
     }
 
+    private fun showOutOfAreaView() {
+        lnOutOfArea?.visibility = View.VISIBLE
+    }
+
+    private fun hideOutOfAreaView() {
+        lnOutOfArea?.visibility = View.GONE
+    }
 }

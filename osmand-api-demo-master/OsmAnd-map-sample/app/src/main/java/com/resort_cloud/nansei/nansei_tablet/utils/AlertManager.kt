@@ -36,8 +36,8 @@ object AlertManager {
         currentDialog?.dismiss()
         
         currentDialog = AlertDialog.Builder(context)
-            .setMessage(context.getString(R.string.map_error_out_of_bounds))
-            .setPositiveButton(context.getString(R.string.ok)) { dialog, _ ->
+            .setMessage(context.getString(R.string.error_rot_my_location_out_of_bounds))
+            .setPositiveButton(context.getString(R.string.close)) { dialog, _ ->
                 dialog.dismiss()
             }
             .setCancelable(false)
@@ -83,7 +83,7 @@ object AlertManager {
             try {
                 // Initialize ToneGenerator
                 if (toneGenerator == null) {
-                    toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+                    toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 80)
                 }
                 
                 // Play beep sound continuously (similar to Flutter TONE_SUP_ERROR)

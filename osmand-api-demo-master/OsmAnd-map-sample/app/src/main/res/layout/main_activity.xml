@@ -96,6 +96,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@android:drawable/ic_menu_search"
+                    app:tint="@color/black"
                     android:contentDescription="@string/search"
                     android:layout_marginEnd="15dp" />
 
@@ -117,6 +118,7 @@
                     android:src="@android:drawable/ic_menu_close_clear_cancel"
                     android:contentDescription="@string/clear"
                     android:visibility="gone"
+                    app:tint="@color/black"
                     android:layout_marginStart="15dp" />
 
             </LinearLayout>
@@ -223,6 +225,26 @@
         android:background="@drawable/round_button"
 
         />
+
+    <LinearLayout
+        android:id="@+id/ln_out_of_area"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/map_widget_red"
+        android:padding="16dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        >
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="@color/white"
+            android:textSize="24sp"
+            android:maxLines="2"
+            android:text="@string/map_error_out_of_bounds"
+            />
+    </LinearLayout>
     <LinearLayout
         android:id="@+id/ln_progress"
         android:layout_width="match_parent"

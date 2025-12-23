@@ -22,19 +22,19 @@
 	<string name="overview">Overview</string>
 	<string name="please_wait_while_we_download_resource">Please wait while we download resource</string>
 	<string name="search">Search</string>
-	<string name="filter">Filter</string>
+	<string name="filter">絞り込み</string>
 	<string name="clear">Clear</string>
-	<string name="cancel">Cancel</string>
-	<string name="destination_place">Destination Place</string>
+	<string name="cancel">キャンセル</string>
+	<string name="destination_place">目的地</string>
 	<string name="error_title">Error</string>
 	<string name="ok">OK</string>
 	<string name="unexpected_message">システムエラーが発生しました。\n恐れ入りますが、しばらく待ってから再度お試しください。</string>
 	<string name="timeout_message">タイムアウトエラーが発生しました。\n恐れ入りますが、しばらく待ってから再度お試しください。</string>
 	<string name="connection_error_message">通信エラーが発生しました。\n恐れ入りますが、しばらく待ってから再度お試しください。</string>
 	<string name="map_error_out_of_bounds">地図の範囲外にいます。\n地図の範囲内に戻ってください。</string>
-	<string name="map_error_location_disabled">位置情報が無効です。\n位置情報を有効にしてください。</string>
-
-
+	<string name="error_rot_my_location_out_of_bounds">現在地がリゾート範囲外です</string>
+	<string name="close">閉じる</string>
+    <string name="map_error_location_disabled">位置情報が無効です。\n位置情報を有効にしてください。</string>
 
 
 </resources>
