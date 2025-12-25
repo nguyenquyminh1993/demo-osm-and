@@ -35,6 +35,7 @@ import net.osmand.plus.OsmAndLocationProvider
 import net.osmand.plus.OsmAndLocationProvider.OsmAndLocationListener
 import net.osmand.plus.OsmandApplication
 import net.osmand.plus.activities.OsmandActionBarActivity
+import net.osmand.plus.base.MapViewTrackingUtilities
 import net.osmand.plus.download.DownloadActivityType
 import net.osmand.plus.download.DownloadIndexesThread
 import net.osmand.plus.download.DownloadIndexesThread.DownloadEvents
@@ -83,30 +84,18 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                     )
 
                     // Check if click is outside map bounds - don't process if outside
-                    if (MapBoundsConstants.isLocationOutOfMapBounds(
-                            latLon.latitude,
-                            latLon.longitude
-                        )
-                    ) {
-                        // Click is outside bounds - don't process
-                        return@OnLongClickListener false
-                    }
+//                    if (MapBoundsConstants.isLocationOutOfMapBounds(
+//                            latLon.latitude,
+//                            latLon.longitude
+//                        )
+//                    ) {
+//                        // Click is outside bounds - don't process
+//                        return@OnLongClickListener false
+//                    }
 
                     finish = latLon
 
-                    // Add destination point immediately to show marker on map
-                    val targetPointsHelper = app?.targetPointsHelper
-                    if (targetPointsHelper != null) {
-                        // Clear previous destination if exists
-                        targetPointsHelper.clearPointToNavigate(false)
-                        // Add new destination point
-                        targetPointsHelper.navigateToPoint(
-                            latLon, true, -1, PointDescription(latLon.latitude, latLon.longitude)
-                        )
-                        // Refresh map to show the marker
-                        mapTileView?.refreshMap()
-                    }
-
+                    calculateRouteToDestination()
                     app?.showShortToastMessage("Destination: " + latLon.latitude + ", " + latLon.longitude)
                     updateStartStopButtonState()
                     true
@@ -151,7 +140,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
     private var finish: LatLon? = null
 
-    private var applicationMode: ApplicationMode? = ApplicationMode.PEDESTRIAN
+    private var applicationMode: ApplicationMode = ApplicationMode.PEDESTRIAN
 
     private var overlayLayer: MapTileLayer? = null
     private var facilityMarkerLayer: FacilityMarkerLayer? = null
@@ -165,6 +154,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     // Map bounds alert
     private var showMapOutCaution: Boolean = false
     private var lastCheckedLocation: Location? = null
+    private lateinit var mapTrackingUtilities: MapViewTrackingUtilities
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -192,6 +182,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         showLoading()
         app = application as OsmandApplication
         app?.appInitializer?.addListener(this)
+        mapTrackingUtilities = app.getMapViewTrackingUtilities()
         setupDownloadListener()
         setupRouteListener()
         OsmAndLocationProvider.requestFineLocationPermissionIfNeeded(this)
@@ -226,7 +217,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             }
         }
 
-        setupVehicleModeButtons()
+//        setupVehicleModeButtons()
 
         // Setup search destination
         setupSearchDestination()
@@ -350,13 +341,50 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             return
         }
 
-        val start = LatLon(currentLocation.latitude, currentLocation.longitude)
+        val routingHelper = app?.routingHelper ?: return
+        val settings = app?.settings ?: return
 
+        // If route is not calculated yet, calculate it first
+        if (!routingHelper.isRouteCalculated) {
+            calculateRouteToDestination()
+            // Wait a bit for route calculation, then check again
+            // Note: Route calculation is async, so we might need to handle this differently
+        }
+        mapTrackingUtilities.backToLocationImpl(17, true)
+        mapTrackingUtilities.switchRoutePlanningMode()
+        settings.FOLLOW_THE_ROUTE.set(true)
+        routingHelper.isFollowingMode = true
+        routingHelper.isRoutePlanningMode = false
+        routingHelper.setCurrentLocation(currentLocation, false)
+        OsmAndLocationProvider.requestFineLocationPermissionIfNeeded(this)
+        app?.showShortToastMessage("Navigation started")
+
+        navigationActive = true
+        updateStartStopButtonState()
+        refreshRouteInfoView()
+    }
+
+    private fun calculateRouteToDestination() {
+        if (finish == null) {
+            return
+        }
+
+        val currentLocation =
+            if (locationProvider != null) locationProvider?.lastKnownLocation else null
+        if (currentLocation == null) {
+            return
+        }
+
+        val start = LatLon(currentLocation.latitude, currentLocation.longitude)
         val settings = app?.settings ?: return
         val routingHelper = app?.routingHelper ?: return
-        settings.applicationMode = applicationMode
         val targetPointsHelper = app?.targetPointsHelper ?: return
 
+        // Set application mode
+        settings.applicationMode = applicationMode
+        routingHelper.appMode = applicationMode
+
+        // Set start and destination points
         targetPointsHelper.setStartPoint(
             start, false, PointDescription(start.latitude, start.longitude)
         )
@@ -364,22 +392,17 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             finish!!, true, -1, PointDescription(finish!!.latitude, finish!!.longitude)
         )
 
+        // Enter route planning mode to calculate route (but don't start navigation)
         app?.osmandMap?.mapActions?.enterRoutePlanningModeGivenGpx(null, start, null, true, false)
 
-        settings.FOLLOW_THE_ROUTE.set(true)
-        routingHelper.isFollowingMode = true
-        routingHelper.isRoutePlanningMode = false
+        // Only set route planning mode, don't activate following mode
+        routingHelper.isRoutePlanningMode = true
+        routingHelper.isFollowingMode = false
         routingHelper.notifyIfRouteIsCalculated()
         routingHelper.setCurrentLocation(currentLocation, false)
 
-        OsmAndLocationProvider.requestFineLocationPermissionIfNeeded(this)
-
-        app?.showShortToastMessage("Navigation started from current location to " + finish!!.latitude + ", " + finish!!.longitude)
-
-        navigationActive = true
-        updateStartStopButtonState()
-
-        refreshRouteInfoView()
+        // Refresh map to show route
+        mapTileView?.refreshMap()
     }
 
     private fun refreshRouteInfoView() {
@@ -577,6 +600,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private fun stopNavigation() {
         val routingHelper = app?.routingHelper
         val targetPointsHelper = app?.targetPointsHelper
+
+        settings.applicationMode = ApplicationMode.DEFAULT
+        routingHelper?.appMode = ApplicationMode.DEFAULT
 
         if (routingHelper != null) {
             routingHelper.isFollowingMode = false
@@ -1266,7 +1292,16 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         refreshUIAfterDownload()
     }
 
-    override fun newRouteIsCalculated(p0: Boolean, p1: ValueHolder<Boolean>?) {
+    override fun newRouteIsCalculated(newRoute: Boolean, p1: ValueHolder<Boolean>?) {
+        val routingHelper = app?.routingHelper ?: return
+        mapTileView?.refreshMap();
+        if (newRoute && routingHelper.isRoutePlanningMode && !mapTileView!!.isCarView) {
+            app.runInUIThread(this::fitCurrentRouteToMap, 300);
+        }
+    }
+
+    private fun fitCurrentRouteToMap() {
+        app.osmandMap.fitCurrentRouteToMap(true, 0)
     }
 
     override fun routeWasCancelled() {
@@ -1366,21 +1401,15 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         }
 
         finish = destinationLatLon
-        // Add destination point immediately to show marker on map
-        val targetPointsHelper = app?.targetPointsHelper
-        if (targetPointsHelper != null) {
-            // Clear previous destination if exists
-            targetPointsHelper.clearPointToNavigate(false)
-            // Add new destination point
-            targetPointsHelper.navigateToPoint(
-                destinationLatLon,
-                true,
-                -1,
-                PointDescription(destinationLatLon.latitude, destinationLatLon.longitude)
-            )
-            // Refresh map to show the marker
-            mapTileView?.refreshMap()
-        }
+//        if (MapBoundsConstants.isLocationOutOfMapBounds(
+//                destinationLatLon.latitude,
+//                destinationLatLon.longitude
+//            )
+//        ) {
+//            // Click is outside bounds - don't process
+//            return
+//        }
+        calculateRouteToDestination()
 
         updateStartStopButtonState()
         updateFollowAndOverViewButtonState()
