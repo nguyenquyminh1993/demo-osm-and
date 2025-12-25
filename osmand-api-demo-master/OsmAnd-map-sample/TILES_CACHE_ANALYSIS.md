@@ -153,3 +153,6 @@ private fun applyOverlayToMap() {
 - `net.osmand.plus.views.layers.MapTileLayer`
 - `net.osmand.plus.settings.OsmandSettings`
 
+
+
+

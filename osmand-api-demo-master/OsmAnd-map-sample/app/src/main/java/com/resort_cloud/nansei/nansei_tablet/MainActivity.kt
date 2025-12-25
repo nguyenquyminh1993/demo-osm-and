@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.card.MaterialCardView
 import com.resort_cloud.nansei.nansei_tablet.dialog.SearchDestinationDialog
+import com.resort_cloud.nansei.nansei_tablet.layers.FacilityMarkerLayer
 import com.resort_cloud.nansei.nansei_tablet.utils.AlertManager
 import com.resort_cloud.nansei.nansei_tablet.utils.ErrorHandler
 import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
@@ -153,6 +154,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private var applicationMode: ApplicationMode? = ApplicationMode.PEDESTRIAN
 
     private var overlayLayer: MapTileLayer? = null
+    private var facilityMarkerLayer: FacilityMarkerLayer? = null
 
     // Search destination
     private var destinationText: String = ""
@@ -995,6 +997,14 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     }
 
     override fun onDestroy() {
+        // Remove custom facility marker layer
+        facilityMarkerLayer?.let {
+            if (mapTileView?.isLayerExists(it) == true) {
+                mapTileView?.removeLayer(it)
+            }
+        }
+        facilityMarkerLayer = null
+
         super.onDestroy()
         resetAllData()
         // Stop beep when activity destroys
@@ -1016,10 +1026,81 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         setMapLanguage("ja")
         addShigiraResortMapOverlay() //TODO only use for nansei
 
+        // Disable OSM POI markers
+//        disableOsmPoiMarkers()
+
+        // Setup custom facility markers
+        setupFacilityMarkers()
+
         // Set default speed for all modes at initialization
         initializeDefaultSpeed()
 
         // Preload facilities để sẵn sàng cho search
+    }
+
+    /**
+     * Disable OSM POI markers to use custom markers instead
+     */
+    private fun disableOsmPoiMarkers() {
+        try {
+            val settings = app?.settings ?: return
+
+            // Disable POI labels (text labels for POIs)
+            try {
+                settings.SHOW_POI_LABEL.set(false)
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Could not disable SHOW_POI_LABEL: ${e.message}")
+            }
+
+            // Try to disable POI icons using reflection if direct access is not available
+            try {
+                val showPoiField = settings.javaClass.getDeclaredField("SHOW_POI")
+                showPoiField.isAccessible = true
+                val showPoiSetting = showPoiField.get(settings)
+                if (showPoiSetting != null) {
+                    val setMethod = showPoiSetting.javaClass.getMethod("set", Boolean::class.java)
+                    setMethod.invoke(showPoiSetting, false)
+                    Log.d("MainActivity", "✅ Disabled SHOW_POI via reflection")
+                }
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Could not disable SHOW_POI: ${e.message}")
+            }
+
+            // Refresh map to apply changes
+            mapTileView?.refreshMap()
+
+            Log.d("MainActivity", "✅ OSM POI markers disabled")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "❌ Error disabling OSM POI markers: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Setup custom facility markers layer
+     * Uses constant data from MarkerDataConstants (extracted from miyako_map.html)
+     */
+    private fun setupFacilityMarkers() {
+        try {
+            // Remove old layer if exists
+            facilityMarkerLayer?.let { oldLayer ->
+                if (mapTileView?.isLayerExists(oldLayer) == true) {
+                    mapTileView?.removeLayer(oldLayer)
+                }
+            }
+
+            // Create new layer with constant data (no need for ViewModel data)
+            facilityMarkerLayer = FacilityMarkerLayer(this)
+            facilityMarkerLayer?.let { layer ->
+                mapTileView?.addLayer(layer, 5f)
+                mapTileView?.refreshMap()
+                val markerCount = com.resort_cloud.nansei.nansei_tablet.data.MarkerDataConstants.getAllMarkers().size
+                Log.d("MainActivity", "✅ Facility markers added: $markerCount markers from constants")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "❌ Error setting up facility markers: ${e.message}", e)
+        }
+
+
     }
 
     /**
