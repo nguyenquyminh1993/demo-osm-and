@@ -1118,10 +1118,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             facilityMarkerLayer = FacilityMarkerLayer(this)
             facilityMarkerLayer?.let { layer ->
                 mapTileView?.addLayer(layer, 5f)
-                mapTileView?.refreshMap()
                 val markerCount = com.resort_cloud.nansei.nansei_tablet.data.MarkerDataConstants.getAllMarkers().size
                 Log.d("MainActivity", "✅ Facility markers added: $markerCount markers from constants")
             }
+            mapTileView?.refreshMap()
         } catch (e: Exception) {
             Log.e("MainActivity", "❌ Error setting up facility markers: ${e.message}", e)
         }
