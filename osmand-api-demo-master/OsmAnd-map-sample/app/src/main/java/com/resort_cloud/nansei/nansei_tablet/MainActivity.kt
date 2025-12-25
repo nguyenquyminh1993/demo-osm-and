@@ -57,7 +57,11 @@ import net.osmand.plus.utils.NativeUtilities
 import net.osmand.plus.utils.OsmAndFormatter
 import net.osmand.plus.views.MapViewWithLayers
 import net.osmand.plus.views.OsmandMapTileView
+import net.osmand.plus.views.layers.FavouritesLayer
+import net.osmand.plus.views.layers.MapMarkersLayer
 import net.osmand.plus.views.layers.MapTileLayer
+import net.osmand.plus.views.layers.POIMapLayer
+import net.osmand.plus.views.layers.TransportStopsLayer
 import java.io.File
 import java.io.IOException
 import java.util.Locale
@@ -216,13 +220,15 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                 centerMapOnLocation(it)
             }
         }
-
-//        setupVehicleModeButtons()
-
-        // Setup search destination
         setupSearchDestination()
 
         mapTileView = app?.osmandMap?.mapView
+
+        // Disable default markers before render and adding custom markers
+        mapTileView?.let {
+            removeAllDefaultMarkerLayers(it, app)
+        }
+
         mapTileView?.setupRenderingView()
 
         // Initialize map with user location if available
@@ -1052,53 +1058,49 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         setMapLanguage("ja")
         addShigiraResortMapOverlay() //TODO only use for nansei
 
-        // Disable OSM POI markers
-//        disableOsmPoiMarkers()
-
         // Setup custom facility markers
         setupFacilityMarkers()
 
         // Set default speed for all modes at initialization
         initializeDefaultSpeed()
-
-        // Preload facilities để sẵn sàng cho search
     }
 
     /**
-     * Disable OSM POI markers to use custom markers instead
+     * Disable all default markers (POI, Favorites, etc.) to use custom markers instead
      */
-    private fun disableOsmPoiMarkers() {
-        try {
-            val settings = app?.settings ?: return
+    fun removeAllDefaultMarkerLayers(mapView: OsmandMapTileView, app: OsmandApplication) {
 
-            // Disable POI labels (text labels for POIs)
-            try {
-                settings.SHOW_POI_LABEL.set(false)
-            } catch (e: Exception) {
-                Log.w("MainActivity", "Could not disable SHOW_POI_LABEL: ${e.message}")
-            }
-
-            // Try to disable POI icons using reflection if direct access is not available
-            try {
-                val showPoiField = settings.javaClass.getDeclaredField("SHOW_POI")
-                showPoiField.isAccessible = true
-                val showPoiSetting = showPoiField.get(settings)
-                if (showPoiSetting != null) {
-                    val setMethod = showPoiSetting.javaClass.getMethod("set", Boolean::class.java)
-                    setMethod.invoke(showPoiSetting, false)
-                    Log.d("MainActivity", "✅ Disabled SHOW_POI via reflection")
-                }
-            } catch (e: Exception) {
-                Log.w("MainActivity", "Could not disable SHOW_POI: ${e.message}")
-            }
-
-            // Refresh map to apply changes
-            mapTileView?.refreshMap()
-
-            Log.d("MainActivity", "✅ OSM POI markers disabled")
-        } catch (e: Exception) {
-            Log.e("MainActivity", "❌ Error disabling OSM POI markers: ${e.message}", e)
+        val poiLayer = mapView.getLayerByClass(POIMapLayer::class.java)
+        if (poiLayer != null) {
+            mapView.removeLayer(poiLayer)
         }
+
+        val favoritesLayer = mapView.getLayerByClass(FavouritesLayer::class.java)
+        if (favoritesLayer != null) {
+            mapView.removeLayer(favoritesLayer)
+        }
+
+        val mapMarkersLayer = mapView.getLayerByClass(MapMarkersLayer::class.java)
+        if (mapMarkersLayer != null) {
+            mapView.removeLayer(mapMarkersLayer)
+        }
+
+        val transportStopsLayer = mapView.getLayerByClass(TransportStopsLayer::class.java)
+        if (transportStopsLayer != null) {
+            mapView.removeLayer(transportStopsLayer)
+        }
+
+        val mapLayers = app.osmandMap.mapLayers
+        val mapVectorLayer = mapLayers.mapVectorLayer
+        mapVectorLayer?.symbolsAlpha = 0
+
+        app.poiFilters.clearAllSelectedPoiFilters()
+
+        val settings = app.settings
+        settings.SHOW_FAVORITES.set(false)
+        settings.SHOW_MAP_MARKERS.set(false)
+
+        mapView.refreshMap()
     }
 
     /**
