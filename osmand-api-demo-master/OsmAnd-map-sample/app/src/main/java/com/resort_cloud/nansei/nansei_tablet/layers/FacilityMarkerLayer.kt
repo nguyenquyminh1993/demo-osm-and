@@ -318,6 +318,8 @@ class FacilityTileProvider(
             "parking" -> "parking"
             "chapel" -> "chapel"
             "amusement" -> "facility"
+            "blocked" -> "blocked"
+            "arrow" -> "arrow"
             else -> null
         }
     }

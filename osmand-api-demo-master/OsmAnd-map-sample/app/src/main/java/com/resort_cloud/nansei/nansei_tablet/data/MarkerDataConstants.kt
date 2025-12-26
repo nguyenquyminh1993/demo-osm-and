@@ -126,7 +126,15 @@ object MarkerDataConstants {
         MarkerInfo("チャペル", 24.72236, 125.33660, "chapel"),
         MarkerInfo("チャペル", 24.72038, 125.33949, "chapel")
     )
-    
+
+    val ARROW_MARKER = listOf(
+        MarkerInfo("", 24.72053, 125.33959, "arrow"),
+    )
+
+    val BLOCK_MARKER = listOf(
+        MarkerInfo("", 24.72001, 125.33934, "blocked"),
+        MarkerInfo("", 24.71963, 125.33922, "blocked"),
+    )
     /**
      * Get all markers combined
      */
@@ -139,7 +147,9 @@ object MarkerDataConstants {
                 LIFT_MARKERS +
                 GOLF_MARKERS +
                 PARKING_MARKERS +
-                CHAPEL_MARKERS
+                CHAPEL_MARKERS +
+                ARROW_MARKER +
+                BLOCK_MARKER
     }
 }
 
