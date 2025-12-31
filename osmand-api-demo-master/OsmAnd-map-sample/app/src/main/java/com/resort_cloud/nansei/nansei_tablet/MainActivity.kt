@@ -22,6 +22,7 @@ import com.resort_cloud.nansei.nansei_tablet.utils.AlertManager
 import com.resort_cloud.nansei.nansei_tablet.utils.ErrorHandler
 import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
 import com.resort_cloud.nansei.nansei_tablet.utils.MapBoundsConstants
+import com.resort_cloud.nansei.nansei_tablet.utils.RouteOneWayValidator
 import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
@@ -98,6 +99,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 //                    }
 
                     finish = latLon
+                    
+                    // Reset flag - always start with PEDESTRIAN mode when destination changes
+                    switchedToBicycleMode = false
 
                     calculateRouteToDestination()
                     app?.showShortToastMessage("Destination: " + latLon.latitude + ", " + latLon.longitude)
@@ -144,7 +148,8 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
     private var finish: LatLon? = null
 
-    private var applicationMode: ApplicationMode = ApplicationMode.PEDESTRIAN
+    // Track if we've switched to bicycle mode due to one-way violation
+    private var switchedToBicycleMode = false
 
     private var overlayLayer: MapTileLayer? = null
     private var facilityMarkerLayer: FacilityMarkerLayer? = null
@@ -386,9 +391,13 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         val routingHelper = app?.routingHelper ?: return
         val targetPointsHelper = app?.targetPointsHelper ?: return
 
+        // Always start with PEDESTRIAN mode when calculating route
+        // If route violates one-way, we'll switch to BICYCLE mode in newRouteIsCalculated()
+        val modeToUse = if (switchedToBicycleMode) ApplicationMode.BICYCLE else ApplicationMode.PEDESTRIAN
+        
         // Set application mode
-        settings.applicationMode = applicationMode
-        routingHelper.appMode = applicationMode
+        settings.applicationMode = modeToUse
+        routingHelper.appMode = modeToUse
 
         // Set start and destination points
         targetPointsHelper.setStartPoint(
@@ -620,6 +629,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         navigationActive = false
         finish = null
         routeInfoContainer?.visibility = View.GONE
+        
+        // Reset flag when stopping navigation
+        switchedToBicycleMode = false
+        
         updateStartStopButtonState()
     }
 
@@ -1297,6 +1310,31 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     override fun newRouteIsCalculated(newRoute: Boolean, p1: ValueHolder<Boolean>?) {
         val routingHelper = app?.routingHelper ?: return
         mapTileView?.refreshMap();
+        
+        // Validate route for one-way restrictions in pedestrian mode
+        if (newRoute && routingHelper.appMode == ApplicationMode.PEDESTRIAN) {
+            val isValid = RouteOneWayValidator.validateRouteForOneWay(app, routingHelper)
+            if (!isValid) {
+                // Route violates one-way restrictions, switch to BICYCLE mode and recalculate
+                Log.w("MainActivity", "Route violates one-way restrictions, switching to BICYCLE mode")
+
+                // Clear current route
+                routingHelper.clearCurrentRoute(null, null)
+
+                // Switch to bicycle mode
+                switchedToBicycleMode = true
+
+                // Wait a bit then recalculate with bicycle mode
+                app?.runInUIThread({
+                    calculateRouteToDestination()
+                }, 500)
+                return
+            } else {
+                // Route is valid, reset flag
+                switchedToBicycleMode = false
+            }
+        }
+        
         if (newRoute && routingHelper.isRoutePlanningMode && !mapTileView!!.isCarView) {
             app.runInUIThread(this::fitCurrentRouteToMap, 300);
         }
@@ -1391,6 +1429,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private fun onDestinationSelected(facility: com.resort_cloud.nansei.nansei_tablet.utils.FacilityItem.FacilityData) {
 
         stopNavigation()
+        // Reset flag when destination changes - always start with PEDESTRIAN mode
+        switchedToBicycleMode = false
+        
         // Set destination text
         destinationText = facility.name
         updateDestinationTextUI()
