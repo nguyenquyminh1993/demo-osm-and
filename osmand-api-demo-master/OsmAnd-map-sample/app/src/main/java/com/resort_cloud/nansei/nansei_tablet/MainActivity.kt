@@ -88,7 +88,12 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                         mapTileView?.mapRenderer, tileBox!!, point.x, point.y
                     )
 
-                    // Check if click is outside map bounds - don't process if outside
+//                     Check if click is outside map bounds - don't process if outside
+
+                    if (showMapOutCaution) {
+                        AlertManager.showMapOutOfBoundsDialog(this)
+                        return@OnLongClickListener false
+                    }
 //                    if (MapBoundsConstants.isLocationOutOfMapBounds(
 //                            latLon.latitude,
 //                            latLon.longitude
@@ -99,7 +104,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 //                    }
 
                     finish = latLon
-                    
+
                     // Reset flag - always start with PEDESTRIAN mode when destination changes
                     switchedToBicycleMode = false
 
@@ -393,8 +398,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         // Always start with PEDESTRIAN mode when calculating route
         // If route violates one-way, we'll switch to BICYCLE mode in newRouteIsCalculated()
-        val modeToUse = if (switchedToBicycleMode) ApplicationMode.BICYCLE else ApplicationMode.PEDESTRIAN
-        
+        val modeToUse =
+            if (switchedToBicycleMode) ApplicationMode.BICYCLE else ApplicationMode.PEDESTRIAN
+
         // Set application mode
         settings.applicationMode = modeToUse
         routingHelper.appMode = modeToUse
@@ -629,10 +635,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         navigationActive = false
         finish = null
         routeInfoContainer?.visibility = View.GONE
-        
+
         // Reset flag when stopping navigation
         switchedToBicycleMode = false
-        
+
         updateStartStopButtonState()
     }
 
@@ -1133,8 +1139,12 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             facilityMarkerLayer = FacilityMarkerLayer(this)
             facilityMarkerLayer?.let { layer ->
                 mapTileView?.addLayer(layer, 5f)
-                val markerCount = com.resort_cloud.nansei.nansei_tablet.data.MarkerDataConstants.getAllMarkers().size
-                Log.d("MainActivity", "✅ Facility markers added: $markerCount markers from constants")
+                val markerCount =
+                    com.resort_cloud.nansei.nansei_tablet.data.MarkerDataConstants.getAllMarkers().size
+                Log.d(
+                    "MainActivity",
+                    "✅ Facility markers added: $markerCount markers from constants"
+                )
             }
             mapTileView?.refreshMap()
         } catch (e: Exception) {
@@ -1310,13 +1320,16 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     override fun newRouteIsCalculated(newRoute: Boolean, p1: ValueHolder<Boolean>?) {
         val routingHelper = app?.routingHelper ?: return
         mapTileView?.refreshMap();
-        
+
         // Validate route for one-way restrictions in pedestrian mode
         if (newRoute && routingHelper.appMode == ApplicationMode.PEDESTRIAN) {
             val isValid = RouteOneWayValidator.validateRouteForOneWay(app, routingHelper)
             if (!isValid) {
                 // Route violates one-way restrictions, switch to BICYCLE mode and recalculate
-                Log.w("MainActivity", "Route violates one-way restrictions, switching to BICYCLE mode")
+                Log.w(
+                    "MainActivity",
+                    "Route violates one-way restrictions, switching to BICYCLE mode"
+                )
 
                 // Clear current route
                 routingHelper.clearCurrentRoute(null, null)
@@ -1334,7 +1347,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                 switchedToBicycleMode = false
             }
         }
-        
+
         if (newRoute && routingHelper.isRoutePlanningMode && !mapTileView!!.isCarView) {
             app.runInUIThread(this::fitCurrentRouteToMap, 300);
         }
@@ -1431,7 +1444,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         stopNavigation()
         // Reset flag when destination changes - always start with PEDESTRIAN mode
         switchedToBicycleMode = false
-        
+
         // Set destination text
         destinationText = facility.name
         updateDestinationTextUI()
@@ -1498,7 +1511,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             if (lastCheckedLocation == null) {
                 AlertManager.showLocationDisabledDialog(this)
             }
-            AlertManager.manageBeepSound(false)
+            AlertManager.manageBeepSound(false, this)
             showMapOutCaution = false
             return
         }
@@ -1520,7 +1533,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         // Update caution state and manage beep
         if (shouldShowCaution != showMapOutCaution) {
             showMapOutCaution = shouldShowCaution
-            AlertManager.manageBeepSound(shouldShowCaution)
+            AlertManager.manageBeepSound(shouldShowCaution, this)
         }
 
         lastCheckedLocation = location
