@@ -22,6 +22,7 @@ import com.resort_cloud.nansei.nansei_tablet.utils.AlertManager
 import com.resort_cloud.nansei.nansei_tablet.utils.ErrorHandler
 import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
 import com.resort_cloud.nansei.nansei_tablet.utils.MapBoundsConstants
+import com.resort_cloud.nansei.nansei_tablet.utils.NetworkUtils
 import com.resort_cloud.nansei.nansei_tablet.utils.RouteOneWayValidator
 import net.osmand.IndexConstants
 import net.osmand.Location
@@ -575,9 +576,21 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
 
     private fun downloadMapIfNeed(location: Location?) {
+        // Only download when:
+        // 1. Location is available
+        // 2. App is initialized (indexes ready)
+        // 3. Network is available
+        // 4. Not currently downloading
         if (location == null || isIndexReady.not() || hasDownloadIndex) {
             return
         }
+        
+        // Check network before downloading
+        if (!NetworkUtils.isNetworkAvailable(this)) {
+            Log.d("MainActivity", "No network available, skip map download/update check")
+            return
+        }
+        
         downloadMap(location)
     }
 
@@ -661,30 +674,50 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     }
 
     private fun downloadMap(location: Location) {
+        // Ensure app is initialized
+        if (!isIndexReady || !areIndexesReady()) {
+            Log.d("MainActivity", "App not initialized yet, ensuring indexes loaded...")
+            ensureIndexesLoaded()
+            return
+        }
+
+        // Check network again to ensure connectivity
+        if (!NetworkUtils.isNetworkAvailable(this)) {
+            Log.d("MainActivity", "No network available, cannot download map")
+            return
+        }
+
         hasDownloadIndex = true
         val latLon = LatLon(location.latitude, location.longitude)
-        if (areIndexesReady().not()) {
-            ensureIndexesLoaded()
-        } else {
-            // Get maps at location
-            val maps: List<IndexItem> =
-                getMapsAtLocationSafely(latLon, DownloadActivityType.NORMAL_FILE)
+        
+        // Get maps at location
+        val maps: List<IndexItem> =
+            getMapsAtLocationSafely(latLon, DownloadActivityType.NORMAL_FILE)
 
-            // Download the first map if available
-            if (maps.isNotEmpty()) {
-                val firstMap = maps[0]
-                // Check if already downloaded
-                if (firstMap.isDownloaded) {
+        // Download the first map if available
+        if (maps.isNotEmpty()) {
+            val firstMap = maps[0]
 
-                    Log.d("MainActivity", "Map already downloaded: " + firstMap.fileName)
-                } else if (isDownloading(firstMap)) {
-                    Log.d(
-                        "MainActivity",
-                        "Map is currently downloading: " + firstMap.fileName
-                    )
-                } else {
-                    downloadIndexItem(firstMap)
-                }
+            // Check if currently downloading
+            if (isDownloading(firstMap)) {
+                Log.d("MainActivity", "Map is currently downloading: ${firstMap.fileName}")
+                return
+            }
+
+            // Check if map is outdated (needs to be re-downloaded)
+            val isOutdated = firstMap.isOutdated
+            val isDownloaded = firstMap.isDownloaded && doesItemFileExist(firstMap)
+
+            if (isOutdated) {
+                Log.d("MainActivity", "Map is outdated: ${firstMap.fileName}, downloading update...")
+                downloadIndexItem(firstMap)
+            } else if (!isDownloaded) {
+                // Map not downloaded yet
+                Log.d("MainActivity", "Map not downloaded: ${firstMap.fileName}, downloading...")
+                downloadIndexItem(firstMap)
+            } else {
+                // Map already downloaded and up-to-date
+                Log.d("MainActivity", "Map already downloaded and up-to-date: ${firstMap.fileName}")
             }
         }
     }
@@ -800,7 +833,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             app.settings.MAP_OVERLAY.set(overlayName)
             app.settings.MAP_OVERLAY_PREVIOUS.set(overlayName)
 
-            // Apply overlay immediately (không cần MapActivity)
+            // Apply overlay immediately (no need for MapActivity)
             applyOverlayToMap()
 
             Log.d("NavigationActivity", "✅ Map overlay added successfully: $overlayName")
@@ -817,10 +850,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             val mapView = app.osmandMap.mapView
 
 
-            // Get overlay tile source từ settings
+            // Get overlay tile source from settings
             val overlayName: String = settings.MAP_OVERLAY.get()
             if (overlayName.isEmpty()) {
-                // Remove overlay nếu setting là null
+                // Remove overlay if setting is null
                 removeOverlayLayer()
                 return
             }
@@ -832,7 +865,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             }
 
 
-            // Tạo overlay layer nếu chưa có
+            // Create overlay layer if not exists
             if (overlayLayer == null) {
                 overlayLayer = MapTileLayer(app, false)
             }
@@ -845,7 +878,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 //            }
 
 
-            // Add layer vào map view nếu chưa có
+            // Add layer to map view if not exists
             overlayLayer?.let {
                 if (!mapView.isLayerExists(it)) {
                     mapView.addLayer(it, 0f)
@@ -1217,7 +1250,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
     private fun setupDownloadListener() {
         val downloadThread = app?.downloadThread
-        downloadThread?.setUiActivity(this) // Set activity làm listener
+        downloadThread?.setUiActivity(this) // Set activity as listener
     }
 
     private fun setupRouteListener() {
@@ -1230,6 +1263,13 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     override fun onUpdatedIndexesList() {
         super.onUpdatedIndexesList()
         isIndexReady = true
+
+        // When indexes are updated, reset flag to check for outdated maps again
+        // Only reset if network is available to avoid unnecessary checks when offline
+        if (NetworkUtils.isNetworkAvailable(this)) {
+            hasDownloadIndex = false
+            Log.d("MainActivity", "Indexes updated, will check for outdated maps on next location update")
+        }
     }
 
     override fun downloadInProgress() {
@@ -1251,6 +1291,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         app.downloadThread.updateLoadedFiles()
         addShigiraResortMapOverlay()
         refreshUIAfterDownload()
+        
+        // Reset flag after download completes to allow checking again if needed
+        hasDownloadIndex = false
+        Log.d("MainActivity", "Map download finished, reset download flag")
     }
 
     override fun newRouteIsCalculated(newRoute: Boolean, p1: ValueHolder<Boolean>?) {
@@ -1308,7 +1352,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         // Setup observers for ViewModel
         setupFacilityObservers()
 
-        // Load facilities từ API
+        // Load facilities from API
         viewModel.loadFacilities()
 
         // Setup click listener cho search bar
