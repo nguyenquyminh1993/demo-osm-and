@@ -88,20 +88,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                         mapTileView?.mapRenderer, tileBox!!, point.x, point.y
                     )
 
-//                     Check if click is outside map bounds - don't process if outside
-
                     if (showMapOutCaution) {
                         AlertManager.showMapOutOfBoundsDialog(this)
                         return@OnLongClickListener false
                     }
-//                    if (MapBoundsConstants.isLocationOutOfMapBounds(
-//                            latLon.latitude,
-//                            latLon.longitude
-//                        )
-//                    ) {
-//                        // Click is outside bounds - don't process
-//                        return@OnLongClickListener false
-//                    }
 
                     finish = latLon
 
@@ -257,7 +247,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         // If indexes haven't been loaded from internet, try to reload them
         if (!indexes.isDownloadedFromInternet && !indexes.downloadFromInternetFailed) {
-            Log.d("minh", "Indexes not loaded yet. Triggering reload...")
             downloadThread.runReloadIndexFilesSilent()
             // Return empty list for now, indexes will be available after reload completes
             return emptyList()
@@ -272,12 +261,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             val indexItem = list[0]
 
             if (doesItemFileExist(indexItem)) return emptyList()
-            Log.d("minh", " list:" + list.size)
 
             return list
 
         } catch (e: IOException) {
-            Log.d("minh", " IOException:" + e.printStackTrace())
             return emptyList()
         }
 
@@ -447,11 +434,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             )
             nextTurnDistanceText?.text =
                 getString(R.string.route_info_next_turn_format, distanceToTurn)
-            //            nextTurnText.setText(instruction != null ? instruction : getString(R.string.route_info_no_turn));
             updateTurnIcon(info.directionInfo, instruction)
         } else {
             nextTurnDistanceText?.setText(R.string.route_info_distance_placeholder)
-            //            nextTurnText.setText(R.string.route_info_no_turn);
             if (nextTurnIcon != null) {
                 nextTurnIcon?.setImageResource(R.drawable.ic_turn_straight)
             }
@@ -586,7 +571,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
     private fun updateFollowAndOverViewButtonState() {
         followNavigationCameraButton?.visibility = if (navigationActive) View.VISIBLE else View.GONE
-        //        overViewNavigationCameraButton.setVisibility(navigationActive ? VISIBLE : GONE); //Todo update logic overview
     }
 
 
@@ -642,19 +626,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         updateStartStopButtonState()
     }
 
-    private fun setupVehicleModeButtons() {
-        val settings = app?.settings
-        val routingHelper = app?.routingHelper
-
-        settings?.applicationMode = ApplicationMode.PEDESTRIAN
-        if (routingHelper != null) {
-            routingHelper.appMode = ApplicationMode.PEDESTRIAN
-            if (routingHelper.isRouteCalculated) {
-                routingHelper.recalculateRouteDueToSettingsChange(true)
-            }
-        }
-    }
-
     private fun downloadIndexItem(item: IndexItem) {
         val validationManager = DownloadValidationManager(app!!)
         validationManager.startDownload(this, item)
@@ -666,12 +637,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         if (location != null) {
             val latLon = LatLon(location.latitude, location.longitude)
             val maps: List<IndexItem> = getIndexItems(latLon)
-
-
             // Update UI to show which maps are now downloaded
             for (item in maps) {
                 if (isItemFullyDownloaded(item)) {
-                    Log.d("minh", "Map downloaded: " + item.fileName)
+                    Log.d("MainActivity", "Map downloaded: " + item.fileName)
                     // Update your UI here
                 }
             }
@@ -700,7 +669,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             // Get maps at location
             val maps: List<IndexItem> =
                 getMapsAtLocationSafely(latLon, DownloadActivityType.NORMAL_FILE)
-            Log.d("minh", "Found " + maps.size + " maps at location")
 
             // Download the first map if available
             if (maps.isNotEmpty()) {
@@ -708,10 +676,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                 // Check if already downloaded
                 if (firstMap.isDownloaded) {
 
-                    Log.d("minh", "Map already downloaded: " + firstMap.fileName)
+                    Log.d("MainActivity", "Map already downloaded: " + firstMap.fileName)
                 } else if (isDownloading(firstMap)) {
                     Log.d(
-                        "minh",
+                        "MainActivity",
                         "Map is currently downloading: " + firstMap.fileName
                     )
                 } else {
@@ -738,7 +706,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     ): List<IndexItem> {
         // Check if regions are initialized
         if (!app.regions.isInitialized) {
-            Log.w("minh", "Regions not initialized yet. Cannot query maps.")
             return emptyList()
         }
 
@@ -748,7 +715,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         // If indexes haven't been loaded from internet, try to reload them
         if (!indexes.isDownloadedFromInternet && !indexes.downloadFromInternetFailed) {
-            Log.d("minh", "Indexes not loaded yet. Triggering reload...")
             downloadThread.runReloadIndexFilesSilent()
             // Return empty list for now, indexes will be available after reload completes
             return emptyList()
@@ -756,15 +722,8 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         try {
             val items = DownloadResources.findIndexItemsAt(app, latLon, type)
-            if (items.isEmpty()) {
-                Log.d(
-                    "minh",
-                    "No maps found at location: " + latLon + ". Indexes loaded: " + indexes.isDownloadedFromInternet
-                )
-            }
             return items
-        } catch (e: IOException) {
-            Log.e("minh", "Error finding maps at location: $latLon", e)
+        } catch (_: IOException) {
             return emptyList()
         }
     }
@@ -802,22 +761,12 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             val settings = app.settings
             // Set map preferred locale
             settings.MAP_PREFERRED_LOCALE.set(localeCode)
-
             app.osmandMap.mapView.refreshMapComplete()
-
-            Log.d(
-                "NavigationActivity",
-                "✅ Map language set to: " + (if (localeCode.isEmpty()) "native/local names" else localeCode)
-            )
             return true
         } catch (e: java.lang.Exception) {
             Log.e("NavigationActivity", "Error setting map language: $localeCode", e)
             return false
         }
-    }
-
-    private fun isOverlayActive(overlayNameValue: String): Boolean {
-        return overlayNameValue == app.settings.MAP_OVERLAY.get()
     }
 
     private fun addMapOverlay(
@@ -852,7 +801,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             app.settings.MAP_OVERLAY_PREVIOUS.set(overlayName)
 
             // Apply overlay immediately (không cần MapActivity)
-            // Plugin có thể access map view trực tiếp từ app.getOsmandMap().getMapView()
             applyOverlayToMap()
 
             Log.d("NavigationActivity", "✅ Map overlay added successfully: $overlayName")
@@ -1213,10 +1161,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                                 Float::class.java
                             )
                             setModeValueMethodFloat.invoke(defaultSpeedSetting, mode, speedMps)
-                            Log.d(
-                                "MainActivity",
-                                "✅ Set DEFAULT_SPEED for $mode successfully (Float method)"
-                            )
                             return
                         } catch (e2: Exception) {
                             Log.d("MainActivity", "⚠️ setModeValue(Float) failed: ${e2.message}")
@@ -1243,7 +1187,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                                     Any::class.java
                                 )
                                 setModeValueMethod.invoke(setting, mode, speedMps)
-                                Log.d("MainActivity", "✅ Set ${field.name} for $mode successfully")
                                 return
                             } catch (_: Exception) {
                                 // Try Float parameter
@@ -1254,10 +1197,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
                                         Float::class.java
                                     )
                                     setModeValueMethodFloat.invoke(setting, mode, speedMps)
-                                    Log.d(
-                                        "MainActivity",
-                                        "✅ Set ${field.name} for $mode successfully"
-                                    )
                                     return
                                 } catch (_: Exception) {
                                     // Continue to next field
@@ -1290,7 +1229,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
     override fun onUpdatedIndexesList() {
         super.onUpdatedIndexesList()
-        Log.d("minh", "onUpdatedIndexesList")
         isIndexReady = true
     }
 
@@ -1302,14 +1240,12 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
     override fun downloadingError(error: String) {
         super.downloadingError(error)
-        Log.d("minh", "downloadingError")
         hasDownloadIndex = false
         hideDownloadIndexProgress()
     }
 
     override fun downloadHasFinished() {
         super.downloadHasFinished()
-        Log.d("minh", "downloadHasFinished")
         hideDownloadIndexProgress()
         setMapLanguage("ja")
         app.downloadThread.updateLoadedFiles()
@@ -1367,7 +1303,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
     /**
      * Setup search destination functionality
-     * Tương tự Flutter: search bar để chọn destination
      */
     private fun setupSearchDestination() {
         // Setup observers for ViewModel
@@ -1457,14 +1392,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         }
 
         finish = destinationLatLon
-//        if (MapBoundsConstants.isLocationOutOfMapBounds(
-//                destinationLatLon.latitude,
-//                destinationLatLon.longitude
-//            )
-//        ) {
-//            // Click is outside bounds - don't process
-//            return
-//        }
+
         calculateRouteToDestination()
 
         updateStartStopButtonState()
@@ -1490,7 +1418,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             destinationTextView?.setTextColor(
                 ContextCompat.getColor(
                     this,
-                    android.R.color.darker_gray
+                    R.color.darker_gray
                 )
             )
             btnClearDestination?.visibility = View.GONE

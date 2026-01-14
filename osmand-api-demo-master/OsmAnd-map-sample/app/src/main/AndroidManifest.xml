@@ -40,7 +40,6 @@
 				<category android:name="android.intent.category.MULTIWINDOW_LAUNCHER" />
 			</intent-filter>
 		</activity>
-		<activity android:name=".FullMapActivity" />
 
 		<!--used for restart after switch between opengl and legacy renderer-->
 		<activity
