@@ -11,7 +11,7 @@
 		android:name="com.resort_cloud.nansei.nansei_tablet.NavigationApplication"
 		android:allowBackup="true"
 		android:configChanges="locale"
-		android:icon="@mipmap/sample_app"
+		android:icon="@mipmap/ic_launcher"
 		android:label="@string/app_name"
 		android:largeHeap="true"
 		android:requestLegacyExternalStorage="true"
