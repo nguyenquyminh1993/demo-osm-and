@@ -1,5 +1,5 @@
 <resources>
-	<string name="app_name">SHIGIRA公式アプリ</string>
+	<string name="app_name_nansei">SHIGIRA公式アプリ</string>
 	<string name="route_info_distance_placeholder">No data</string>
 	<string name="route_info_no_turn">No data</string>
 	<string name="route_info_remaining_placeholder">No data</string>
