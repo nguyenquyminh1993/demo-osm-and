@@ -1,18 +1,15 @@
 package com.resort_cloud.nansei.nansei_tablet.utils
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioManager
-import android.media.ToneGenerator
-import android.os.Handler
-import android.os.Looper
+import android.media.MediaPlayer
 import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import com.resort_cloud.nansei.nansei_tablet.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -23,9 +20,8 @@ object AlertManager {
 
     private const val TAG = "AlertManager"
     private var beepJob: Job? = null
-    private var toneGenerator: ToneGenerator? = null
-    private val handler = Handler(Looper.getMainLooper())
     private var currentDialog: AlertDialog? = null
+    private var mediaPlayer: MediaPlayer? = null
 
     /**
      * Show dialog alert when user is out of map bounds
@@ -95,32 +91,33 @@ object AlertManager {
                     getCurrentVolume(audioManager)
                 } else {
                     80 // Fallback if AudioManager is not available
-                }
+                }.toFloat()
 
                 Log.d(TAG, "Starting beep sound with volume: $currentVolume (from device settings)")
 
-                // Initialize ToneGenerator with volume from device settings
-                if (toneGenerator == null) {
-                    toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, currentVolume)
+
+                if (mediaPlayer == null) {
+                    mediaPlayer =
+                        MediaPlayer.create(context, R.raw.alert_current_location_not_in_seagaia)
+                            .apply {
+                                setAudioAttributes(
+                                    AudioAttributes.Builder()
+                                        .setUsage(AudioAttributes.USAGE_ALARM)
+                                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                        .build()
+                                )
+                                isLooping = true
+                                setVolume(currentVolume, currentVolume)
+                                start()
+                            }
                 } else {
-                    // Update volume if ToneGenerator already exists
-                    // Note: ToneGenerator doesn't have a setVolume method, so we need to recreate it
-                    try {
-                        toneGenerator?.release()
-                        toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, currentVolume)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error updating tone generator volume", e)
+                    mediaPlayer?.setVolume(currentVolume, currentVolume)
+                    if (mediaPlayer?.isPlaying == false) {
+                        mediaPlayer?.start()
                     }
                 }
-
-                // Play beep sound continuously (similar to Flutter TONE_SUP_ERROR)
-                // TONE_CDMA_ALERT_CALL_GUARD is similar to TONE_SUP_ERROR
-                while (isActive) {
-                    toneGenerator?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 1000)
-                    delay(1000) // Wait 1 second, then play again
-                }
             } catch (e: Exception) {
-                Log.e(TAG, "Error playing beep sound", e)
+                Log.e(TAG, "Error playing mp3 beep sound", e)
             }
         }
     }
@@ -146,10 +143,11 @@ object AlertManager {
         beepJob = null
 
         try {
-            toneGenerator?.release()
-            toneGenerator = null
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
         } catch (e: Exception) {
-            Log.e(TAG, "Error releasing tone generator", e)
+            Log.e(TAG, "Error releasing media player", e)
         }
     }
 
