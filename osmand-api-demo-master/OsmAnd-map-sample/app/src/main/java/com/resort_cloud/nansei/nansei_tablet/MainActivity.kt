@@ -18,6 +18,7 @@ import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.card.MaterialCardView
 import com.resort_cloud.nansei.nansei_tablet.dialog.SearchDestinationDialog
 import com.resort_cloud.nansei.nansei_tablet.layers.FacilityMarkerLayer
+import com.resort_cloud.nansei.nansei_tablet.layers.InternalRoutesLayer
 import com.resort_cloud.nansei.nansei_tablet.utils.AlertManager
 import com.resort_cloud.nansei.nansei_tablet.utils.ErrorHandler
 import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
@@ -149,6 +150,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
     private var overlayLayer: MapTileLayer? = null
     private var facilityMarkerLayer: FacilityMarkerLayer? = null
+    private var internalRoutesLayer: InternalRoutesLayer? = null
 
     // Search destination
     private var destinationText: String = ""
@@ -1061,6 +1063,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         // Setup custom facility markers
         setupFacilityMarkers()
 
+        // Setup internal routes from GPX
+        setupInternalRoutes()
+
         // Set default speed for all modes at initialization
         initializeDefaultSpeed()
     }
@@ -1134,6 +1139,32 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
 
     }
+
+    /**
+     * Setup internal routes layer to draw polylines from GPX file
+     */
+    private fun setupInternalRoutes() {
+        try {
+            // Remove old layer if exists
+            internalRoutesLayer?.let { oldLayer ->
+                if (mapTileView?.isLayerExists(oldLayer) == true) {
+                    mapTileView?.removeLayer(oldLayer)
+                }
+            }
+
+            // Create new layer
+            internalRoutesLayer = InternalRoutesLayer(this)
+            internalRoutesLayer?.let { layer ->
+                // Add layer with lower priority (drawn below markers)
+                mapTileView?.addLayer(layer, 3f)
+                Log.d("MainActivity", "✅ Internal routes layer added from data_internal.gpx")
+            }
+            mapTileView?.refreshMap()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "❌ Error setting up internal routes: ${e.message}", e)
+        }
+    }
+
 
     /**
      * Initialize default speed settings for all application modes
