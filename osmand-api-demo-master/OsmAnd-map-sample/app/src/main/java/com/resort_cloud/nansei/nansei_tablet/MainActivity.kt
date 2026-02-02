@@ -785,9 +785,9 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     }
 
     private fun addShigiraResortMapOverlay() {
-        val overlayName = "Shigira Resort Map"
-        val urlTemplate = "https://shigira-resort-map.resort-cloud.com/hot/{z}/{x}/{y}.png"
-        addMapOverlay(overlayName, urlTemplate, 1, 18)
+//        val overlayName = "Shigira Resort Map"
+//        val urlTemplate = "https://shigira-resort-map.resort-cloud.com/hot/{z}/{x}/{y}.png"
+//        addMapOverlay(overlayName, urlTemplate, 1, 18)
 
     }
 
