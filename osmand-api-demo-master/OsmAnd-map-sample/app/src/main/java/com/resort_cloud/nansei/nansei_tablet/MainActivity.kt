@@ -227,10 +227,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         mapTileView = app?.osmandMap?.mapView
 
-        // Disable default markers before render and adding custom markers
-        mapTileView?.let {
-            removeAllDefaultMarkerLayers(it, app)
-        }
+//        // Disable default markers before render and adding custom markers
+//        mapTileView?.let {
+//            removeAllDefaultMarkerLayers(it, app)
+//        }
 
         mapTileView?.setupRenderingView()
 
@@ -1061,7 +1061,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
         addShigiraResortMapOverlay() //TODO only use for nansei
 
         // Setup custom facility markers
-        setupFacilityMarkers()
+//        setupFacilityMarkers()
 
         // Setup internal routes from GPX
         setupInternalRoutes()

@@ -73,8 +73,8 @@ class InternalRoutesLayer(context: Context) : OsmandMapLayer(context) {
             val baseOrder = getBaseOrder()
 
             // Colors
-            val whiteColor = NativeUtilities.createFColorARGB(0xFFFFFFFF.toInt()) // Blue #4A90E2
-            val blueColor = NativeUtilities.createFColorARGB(0xFF4A90E2.toInt()) // White
+            val whiteColor = NativeUtilities.createFColorARGB(0xFFFFFFFF.toInt())
+            val blueColor = NativeUtilities.createFColorARGB(0xFF669AFF.toInt())
 
             // Dash Pattern: [Draw, Space, Draw, Space...]
             // Increased scale for better visibility at map zoom levels
@@ -94,25 +94,25 @@ class InternalRoutesLayer(context: Context) : OsmandMapLayer(context) {
                         points31.add(PointI(x31, y31))
                     }
 
-                    // 2. FOREGROUND LINE (White, Dashed, Narrower)
+                    // 2. BACKGROUND LINE (blue, Dashed, Narrower)
                     // Added to fgCollection (Strictly on top)
                     val bgBuilder = VectorLineBuilder()
                     bgBuilder.setBaseOrder(baseOrder + 10) // Ensure strictly higher order
                         .setIsHidden(false)
                         .setLineId(lineId++)
-                        .setLineWidth(18.0) // Narrower white line
+                        .setLineWidth(18.0) // Narrower blue line
                         .setPoints(points31)
                         .setFillColor(blueColor)
 
                     bgBuilder.buildAndAddToCollection(fgCollection)
 
-                    // 1. BACKGROUND LINE (Blue, Solid, Wide)
+                    // 1. FOREGROUND LINE (white, Solid, Wide)
                     // Added to bgCollection
                     val fgBuilder = VectorLineBuilder()
                     fgBuilder.setBaseOrder(baseOrder)
                         .setIsHidden(false)
                         .setLineId(lineId++)
-                        .setLineWidth(6.0) // Wide blue background
+                        .setLineWidth(6.0) // Wide white background
                         .setPoints(points31)
                         .setFillColor(whiteColor)
                         .setLineDash(dashPattern)
