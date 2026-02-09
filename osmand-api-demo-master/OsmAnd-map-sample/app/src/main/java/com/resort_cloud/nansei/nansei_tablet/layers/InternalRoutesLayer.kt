@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.util.Log
 import com.resort_cloud.nansei.nansei_tablet.utils.GpxParser
+import kotlinx.coroutines.launch
 import net.osmand.core.android.MapRendererView
 import net.osmand.core.jni.PointI
 import net.osmand.core.jni.QVectorPointI
@@ -30,9 +31,63 @@ class InternalRoutesLayer(context: Context) : OsmandMapLayer(context) {
 
     override fun initLayer(view: OsmandMapTileView) {
         super.initLayer(view)
-        loadGpxTracks()
+        loadOsmTracks()
     }
 
+    /**
+     * Load OSM tracks from API or cache (similar to GPX loading)
+     */
+    private fun loadOsmTracks() {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                Log.d(TAG, "Loading OSM tracks...")
+                
+                // Initialize services
+                val osmDataService = com.resort_cloud.nansei.nansei_tablet.services.OsmDataService(context)
+                val osmParser = com.resort_cloud.nansei.nansei_tablet.utils.OsmParser()
+                
+                // Fetch OSM data (online or offline)
+                val osmXml = osmDataService.fetchOsmData()
+                
+                if (osmXml != null) {
+                    // Parse OSM XML
+                    val osmData = osmParser.parseOsmXml(osmXml)
+                    
+                    // Convert to polylines
+                    val polylines = osmParser.waysToPolylines(osmData)
+                    
+                    if (polylines.isNotEmpty()) {
+                        // Convert to GPX track format
+                        tracks.clear()
+                        for ((index, polyline) in polylines.withIndex()) {
+                            if (polyline.isEmpty()) continue
+                            
+                            val trackPoints = polyline.map { (lat, lon) ->
+                                GpxParser.TrackPoint(lat, lon)
+                            }
+                            
+                            val segment = GpxParser.TrackSegment(trackPoints)
+                            val track = GpxParser.GpxTrack(
+                                name = "OSM Way $index",
+                                segments = listOf(segment)
+                            )
+                            
+                            tracks.add(track)
+                        }
+                        
+                        Log.d(TAG, "✅ Loaded ${tracks.size} OSM tracks")
+                    } else {
+                        Log.w(TAG, "No OSM polylines found")
+                    }
+                } else {
+                    Log.w(TAG, "No OSM data available")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading OSM tracks", e)
+            }
+        }
+    }
+    
     private fun loadGpxTracks() {
         try {
             // Load standard GPX (lat/lon)

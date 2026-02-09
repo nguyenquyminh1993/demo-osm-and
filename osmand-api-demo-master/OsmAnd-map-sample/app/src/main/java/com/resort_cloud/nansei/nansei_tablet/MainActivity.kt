@@ -25,6 +25,7 @@ import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
 import com.resort_cloud.nansei.nansei_tablet.utils.MapBoundsConstants
 import com.resort_cloud.nansei.nansei_tablet.utils.NetworkUtils
 import com.resort_cloud.nansei.nansei_tablet.utils.RouteOneWayValidator
+import kotlinx.coroutines.launch
 import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
