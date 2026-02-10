@@ -19,13 +19,13 @@ import com.google.android.material.card.MaterialCardView
 import com.resort_cloud.nansei.nansei_tablet.dialog.SearchDestinationDialog
 import com.resort_cloud.nansei.nansei_tablet.layers.FacilityMarkerLayer
 import com.resort_cloud.nansei.nansei_tablet.layers.InternalRoutesLayer
+import com.resort_cloud.nansei.nansei_tablet.managers.InternalRoutesDataManager
 import com.resort_cloud.nansei.nansei_tablet.utils.AlertManager
 import com.resort_cloud.nansei.nansei_tablet.utils.ErrorHandler
 import com.resort_cloud.nansei.nansei_tablet.utils.MainViewModel
 import com.resort_cloud.nansei.nansei_tablet.utils.MapBoundsConstants
 import com.resort_cloud.nansei.nansei_tablet.utils.NetworkUtils
 import com.resort_cloud.nansei.nansei_tablet.utils.RouteOneWayValidator
-import kotlinx.coroutines.launch
 import net.osmand.IndexConstants
 import net.osmand.Location
 import net.osmand.data.LatLon
@@ -224,6 +224,10 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             }
         }
         setupSearchDestination()
+        
+        // Preload internal routes data early (before map initialization)
+        // This allows data to be ready when map loads, reducing visible loading time
+        InternalRoutesDataManager.getInstance().preloadData(this)
 
         mapTileView = app?.osmandMap?.mapView
 
@@ -1058,7 +1062,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     private fun setupMap() {
         disableToasts()
         setMapLanguage("ja")
-        addShigiraResortMapOverlay() //TODO only use for nansei
+//        addShigiraResortMapOverlay() //TODO only use for nansei
 
         // Setup custom facility markers
 //        setupFacilityMarkers()

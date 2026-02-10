@@ -3,8 +3,8 @@ package com.resort_cloud.nansei.nansei_tablet.layers
 import android.content.Context
 import android.graphics.Canvas
 import android.util.Log
+import com.resort_cloud.nansei.nansei_tablet.managers.InternalRoutesDataManager
 import com.resort_cloud.nansei.nansei_tablet.utils.GpxParser
-import kotlinx.coroutines.launch
 import net.osmand.core.android.MapRendererView
 import net.osmand.core.jni.PointI
 import net.osmand.core.jni.QVectorPointI
@@ -18,12 +18,13 @@ import net.osmand.util.MapUtils
 
 /**
  * Layer using VectorLine for smooth polyline rendering
- * Same approach as RouteLayer - no delay, auto rotation
+ * Data is preloaded by InternalRoutesDataManager before map initialization
  */
 class InternalRoutesLayer(context: Context) : OsmandMapLayer(context) {
 
     private val TAG = "InternalRoutesLayer"
     private val tracks = mutableListOf<GpxParser.GpxTrack>()
+    private val dataManager = InternalRoutesDataManager.getInstance()
 
     // Separate collections to ensure strict drawing order (Z-index)
     private var bgLinesCollection: VectorLinesCollection? = null // Blue background
@@ -31,75 +32,38 @@ class InternalRoutesLayer(context: Context) : OsmandMapLayer(context) {
 
     override fun initLayer(view: OsmandMapTileView) {
         super.initLayer(view)
-        loadOsmTracks()
+        loadTracksFromManager()
     }
 
     /**
-     * Load OSM tracks from API or cache (similar to GPX loading)
+     * Load tracks from preloaded data manager
+     * If data is not ready yet, register callback to load when ready
      */
-    private fun loadOsmTracks() {
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            try {
-                Log.d(TAG, "Loading OSM tracks...")
+    private fun loadTracksFromManager() {
+        if (dataManager.isDataReady()) {
+            // Data is already ready, load immediately
+            val loadedTracks = dataManager.getTracks()
+            tracks.clear()
+            tracks.addAll(loadedTracks)
+            Log.d(TAG, "✅ Loaded ${tracks.size} tracks from data manager (immediate)")
+            
+            // Trigger redraw if map is ready
+            view?.refreshMap()
+        } else {
+            // Data not ready yet, register callback
+            Log.d(TAG, "Data not ready yet, registering callback...")
+            dataManager.onDataReady {
+                val loadedTracks = dataManager.getTracks()
+                tracks.clear()
+                tracks.addAll(loadedTracks)
+                Log.d(TAG, "✅ Loaded ${tracks.size} tracks from data manager (callback)")
                 
-                // Initialize services
-                val osmDataService = com.resort_cloud.nansei.nansei_tablet.services.OsmDataService(context)
-                val osmParser = com.resort_cloud.nansei.nansei_tablet.utils.OsmParser()
-                
-                // Fetch OSM data (online or offline)
-                val osmXml = osmDataService.fetchOsmData()
-                
-                if (osmXml != null) {
-                    // Parse OSM XML
-                    val osmData = osmParser.parseOsmXml(osmXml)
-                    
-                    // Convert to polylines
-                    val polylines = osmParser.waysToPolylines(osmData)
-                    
-                    if (polylines.isNotEmpty()) {
-                        // Convert to GPX track format
-                        tracks.clear()
-                        for ((index, polyline) in polylines.withIndex()) {
-                            if (polyline.isEmpty()) continue
-                            
-                            val trackPoints = polyline.map { (lat, lon) ->
-                                GpxParser.TrackPoint(lat, lon)
-                            }
-                            
-                            val segment = GpxParser.TrackSegment(trackPoints)
-                            val track = GpxParser.GpxTrack(
-                                name = "OSM Way $index",
-                                segments = listOf(segment)
-                            )
-                            
-                            tracks.add(track)
-                        }
-                        
-                        Log.d(TAG, "✅ Loaded ${tracks.size} OSM tracks")
-                    } else {
-                        Log.w(TAG, "No OSM polylines found")
-                    }
-                } else {
-                    Log.w(TAG, "No OSM data available")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error loading OSM tracks", e)
+                // Trigger redraw when data arrives
+                view?.refreshMap()
             }
         }
     }
     
-    private fun loadGpxTracks() {
-        try {
-            // Load standard GPX (lat/lon)
-            val gpxTracks = GpxParser.parseGpxFromAssets(context, "data_internal.gpx")
-            tracks.clear()
-            tracks.addAll(gpxTracks)
-            Log.d(TAG, "Loaded ${tracks.size} tracks from GPX file")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading GPX tracks", e)
-        }
-    }
-
     override fun onPrepareBufferImage(
         canvas: Canvas?,
         tileBox: RotatedTileBox?,
@@ -227,7 +191,9 @@ class InternalRoutesLayer(context: Context) : OsmandMapLayer(context) {
 
         bgLinesCollection = null
         fgLinesCollection = null
-        loadGpxTracks()
+        
+        // Reload from data manager
+        loadTracksFromManager()
 
         if (mapRenderer != null && tracks.isNotEmpty()) {
             buildVectorLines(mapRenderer)
@@ -236,3 +202,4 @@ class InternalRoutesLayer(context: Context) : OsmandMapLayer(context) {
         view?.refreshMap()
     }
 }
+
