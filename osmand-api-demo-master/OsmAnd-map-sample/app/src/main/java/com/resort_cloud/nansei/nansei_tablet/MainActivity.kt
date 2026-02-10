@@ -100,7 +100,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
                     // Reset flag - always start with PEDESTRIAN mode when destination changes
                     switchedToBicycleMode = false
-                    showMarker()
                     calculateRouteToDestination()
                     app?.showShortToastMessage("Destination: " + latLon.latitude + ", " + latLon.longitude)
                     updateStartStopButtonState()
@@ -235,8 +234,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
         mapTileView?.setupRenderingView()
 
-        hideMarker()
-
         // Initialize map with user location if available
         if (locationProvider != null) {
             val lastKnown = locationProvider?.lastKnownLocation
@@ -349,7 +346,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             app?.showShortToastMessage("Unable to get current location. Please enable location services.")
             return
         }
-        hideMarker()
 
         val routingHelper = app?.routingHelper ?: return
         val settings = app?.settings ?: return
@@ -1469,7 +1465,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
             AlertManager.showMapOutOfBoundsDialog(this)
             return
         }
-        showMarker()
 
         finish = destinationLatLon
 
@@ -1553,14 +1548,6 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
 
     private fun hideOutOfAreaView() {
         lnOutOfArea?.visibility = View.GONE
-    }
-
-    private fun hideMarker(){
-        app.osmandMap?.mapLayers?.mapVectorLayer?.symbolsAlpha = 0
-    }
-
-    private fun showMarker(){
-        app.osmandMap?.mapLayers?.mapVectorLayer?.symbolsAlpha = 255
     }
 
 }
