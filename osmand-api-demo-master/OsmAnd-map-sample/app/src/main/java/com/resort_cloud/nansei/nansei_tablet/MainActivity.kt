@@ -319,7 +319,7 @@ class MainActivity : OsmandActionBarActivity(), AppInitializeListener, DownloadE
     override fun onResume() {
         super.onResume()
         mapViewWithLayers?.onResume()
-        mapTileView?.setOnLongClickListener(clickListener)
+//        mapTileView?.setOnLongClickListener(clickListener)
         app?.routingHelper?.addRouteDataListener(routingDataUpdateListener)
         if (locationProvider != null) {
             locationProvider?.addLocationListener(locationListener)
